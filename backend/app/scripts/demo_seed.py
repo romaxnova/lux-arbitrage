@@ -212,13 +212,15 @@ def _estimate_profit(oskelly_eur: float) -> float:
 
 
 async def _seed_from_oskelly(db, brands: dict, marketplaces: dict) -> tuple[int, int]:
-    """Scrape real Oskelly data and pair with Vinted search counterparts."""
+    """Scrape real Oskelly data and pair with ONE Vinted search entry per brand+category."""
     oskelly_mp = marketplaces["oskelly"]
     vinted_mp = marketplaces["vinted"]
     adapter = OskellyAdapter()
 
     vinted_created = 0
     oskelly_created = 0
+    # Track (brand_slug, category) pairs already covered to avoid duplicate Vinted entries
+    vinted_pairs_created: set[tuple[str, str]] = set()
 
     from app.core.constants import PRIORITY_BRANDS
 
@@ -234,22 +236,19 @@ async def _seed_from_oskelly(db, brands: dict, marketplaces: dict) -> tuple[int,
             logger.warning("Oskelly scrape failed for %s: %s", brand_name, exc)
             continue
 
+        # Collect qualifying Oskelly listings before creating Vinted pairs
+        qualifying: list[tuple] = []
         for raw in raw_listings:
-            # Filter to high-value items only
-            if float(raw.price) < MIN_OSKELLY_EUR * float(currency_service.get_rate("RUB")):
-                continue  # too cheap in RUB terms; skip
-
             eur_rate = currency_service.get_rate("RUB")
             oskelly_eur = float(raw.price / eur_rate) if raw.currency == "RUB" else float(raw.price)
-
             if oskelly_eur < MIN_OSKELLY_EUR:
                 continue
-
-            expected_profit = _estimate_profit(oskelly_eur)
-            if expected_profit < MIN_GROSS_PROFIT_EUR:
+            if _estimate_profit(oskelly_eur) < MIN_GROSS_PROFIT_EUR:
                 continue
+            qualifying.append((raw, oskelly_eur))
 
-            # Oskelly listing (real)
+        for raw, oskelly_eur in qualifying:
+            # Oskelly listing (real, with real URL + images)
             o_ext_id = f"real_oskelly_{raw.external_id}"
             ol = await _upsert_demo_listing(
                 db,
@@ -268,35 +267,43 @@ async def _seed_from_oskelly(db, brands: dict, marketplaces: dict) -> tuple[int,
             if ol:
                 oskelly_created += 1
 
-            # Vinted virtual listing (search URL)
-            vinted_eur = Decimal(str(round(oskelly_eur * float(VINTED_PRICE_RATIO), 2)))
-            v_ext_id = f"vinted_for_{raw.external_id}"
-            vl = await _upsert_demo_listing(
-                db,
-                mp=vinted_mp,
-                brand=brand,
-                ext_id=v_ext_id,
-                title=f"{brand_name} {raw.category} (search Vinted)",
-                category=raw.category,
-                size_raw=raw.size_raw,
-                price_eur=vinted_eur,
-                currency="EUR",
-                listing_url=vinted_search_url(brand_name, raw.category),
-                image_urls=[],
-                description=f"Find {brand_name} {raw.category} items on Vinted",
-            )
-            if vl:
-                vinted_created += 1
+            # ONE shared Vinted search entry per (brand, category) pair
+            pair_key = (brand_slug, raw.category)
+            if pair_key not in vinted_pairs_created:
+                avg_vinted_eur = Decimal(str(round(oskelly_eur * float(VINTED_PRICE_RATIO), 2)))
+                v_ext_id = f"vsearch_{brand_slug}_{raw.category}"
+                vl = await _upsert_demo_listing(
+                    db,
+                    mp=vinted_mp,
+                    brand=brand,
+                    ext_id=v_ext_id,
+                    title=f"{brand_name} {raw.category} (search Vinted)",
+                    category=raw.category,
+                    size_raw=None,
+                    price_eur=avg_vinted_eur,
+                    currency="EUR",
+                    listing_url=vinted_search_url(brand_name, raw.category),
+                    image_urls=[],
+                    description=f"Search Vinted for {brand_name} {raw.category}",
+                )
+                if vl:
+                    vinted_created += 1
+                    vinted_pairs_created.add(pair_key)
 
     return vinted_created, oskelly_created
 
 
 async def _seed_fallback(db, brands: dict, marketplaces: dict) -> tuple[int, int]:
-    """Seed from hardcoded high-value pairs (fallback when scrape yields few results)."""
+    """Seed from hardcoded high-value pairs.
+
+    For the Vinted side we create one shared search entry per (brand, category)
+    so the same search URL isn't duplicated across multiple Oskelly items.
+    """
     oskelly_mp = marketplaces["oskelly"]
     vinted_mp = marketplaces["vinted"]
     vinted_created = 0
     oskelly_created = 0
+    vinted_pairs_created: set[tuple[str, str]] = set()
 
     for i, (brand_name, category, oskelly_eur_int, v_keywords, o_title, o_image) in enumerate(FALLBACK_PAIRS):
         brand_slug = slugify(brand_name)
@@ -307,7 +314,7 @@ async def _seed_fallback(db, brands: dict, marketplaces: dict) -> tuple[int, int
         oskelly_eur = Decimal(str(oskelly_eur_int))
         vinted_eur = (oskelly_eur * VINTED_PRICE_RATIO).quantize(Decimal("0.01"))
 
-        # Oskelly listing
+        # Oskelly listing (one per fallback entry = one specific item)
         o_ext_id = f"fb_oskelly_{i:04d}"
         ol = await _upsert_demo_listing(
             db,
@@ -326,24 +333,27 @@ async def _seed_fallback(db, brands: dict, marketplaces: dict) -> tuple[int, int
         if ol:
             oskelly_created += 1
 
-        # Vinted virtual listing
-        v_ext_id = f"fb_vinted_{i:04d}"
-        vl = await _upsert_demo_listing(
-            db,
-            mp=vinted_mp,
-            brand=brand,
-            ext_id=v_ext_id,
-            title=f"{brand_name} {v_keywords}",
-            category=category,
-            size_raw=None,
-            price_eur=vinted_eur,
-            currency="EUR",
-            listing_url=vinted_search_url(brand_name, category),
-            image_urls=[],
-            description=f"Find on Vinted: {v_keywords}",
-        )
-        if vl:
-            vinted_created += 1
+        # ONE Vinted search entry per (brand, category)
+        pair_key = (brand_slug, category)
+        if pair_key not in vinted_pairs_created:
+            v_ext_id = f"vsearch_{brand_slug}_{category}"
+            vl = await _upsert_demo_listing(
+                db,
+                mp=vinted_mp,
+                brand=brand,
+                ext_id=v_ext_id,
+                title=f"{brand_name} {v_keywords}",
+                category=category,
+                size_raw=None,
+                price_eur=vinted_eur,
+                currency="EUR",
+                listing_url=vinted_search_url(brand_name, category),
+                image_urls=[],
+                description=f"Find on Vinted: {v_keywords}",
+            )
+            if vl:
+                vinted_created += 1
+                vinted_pairs_created.add(pair_key)
 
     return vinted_created, oskelly_created
 

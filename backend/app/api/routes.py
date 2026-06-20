@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -438,16 +438,25 @@ async def trigger_scrape(db: Annotated[AsyncSession, Depends(get_db)]):
 
 
 @router.post("/admin/seed-demo")
-async def seed_demo(db: Annotated[AsyncSession, Depends(get_db)]):
+async def seed_demo(background_tasks: BackgroundTasks, db: Annotated[AsyncSession, Depends(get_db)]):
     """Populate the database with realistic demo listings and run matching/scoring.
 
+    Runs as a background task to avoid request timeouts on slow hosts.
     Safe to call multiple times — skips listings that already exist.
-    Use this when live scrapers are blocked or unavailable.
     """
     from app.scripts.demo_seed import run_demo_seed
 
-    stats = await run_demo_seed(db)
-    return {"status": "completed", "stats": stats}
+    async def _run():
+        from app.database import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as bg_db:
+            stats = await run_demo_seed(bg_db)
+            await bg_db.commit()
+            import logging
+            logging.getLogger(__name__).info("seed-demo complete: %s", stats)
+
+    background_tasks.add_task(_run)
+    return {"status": "seeding_started", "message": "Demo seed running in background — check /api/v1/market/stats in ~60s"}
 
 
 @router.post("/admin/matching/run")
