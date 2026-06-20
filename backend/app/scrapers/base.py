@@ -22,6 +22,7 @@ class RawListing:
     description: str
     is_sold: bool
     listed_at: datetime | None
+    model_name: str | None = None   # structured model name (e.g. "Jodie", "Cassette")
 
 
 class MarketplaceAdapter(ABC):

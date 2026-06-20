@@ -265,11 +265,11 @@ async def run_matching(db) -> int:
                 continue
             if source.category != target.category:
                 continue
-            # If BOTH listings have a subcategory (item type), they must match.
-            # This prevents "Prada sneakers" being matched with "Prada tote bag"
-            # just because both are in the same broad category.
+            # Subcategory = canonical model name (e.g. "Jodie Bag", "Triple S").
+            # If both sides have a subcategory it MUST be the same model.
+            # This is the primary guard against apples-vs-oranges matches.
             if source.subcategory and target.subcategory:
-                if source.subcategory != target.subcategory:
+                if source.subcategory.lower() != target.subcategory.lower():
                     continue
             if not passes_arbitrage_direction(source.price_eur, target.price_eur):
                 continue

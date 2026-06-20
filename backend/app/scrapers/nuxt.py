@@ -198,6 +198,17 @@ def extract_product_urls(html: str) -> dict[int, str]:
     return mapping
 
 
+def _resolve_product_model(payload: list[Any], model_ref: Any) -> str | None:
+    """Extract the structured model name from Oskelly's productModel field."""
+    model = resolve_ref(payload, model_ref)
+    if not isinstance(model, dict):
+        return None
+    name = resolve_ref(payload, model.get("name"))
+    if isinstance(name, str) and 2 <= len(name.strip()) <= 60:
+        return name.strip()
+    return None
+
+
 def parse_product_record(
     payload: list[Any], raw: dict[str, Any], url_map: dict[int, str], product_id: int
 ) -> dict[str, Any] | None:
@@ -207,6 +218,10 @@ def parse_product_record(
 
     brand_name = _resolve_brand(payload, raw.get("brand"))
     category, subcategory = _resolve_category(payload, raw.get("category"))
+
+    # Structured model name (e.g. "Jodie", "Cassette", "Triple S")
+    oskelly_model = _resolve_product_model(payload, raw.get("productModel"))
+
     price = resolve_ref(payload, raw.get("price"))
     if not isinstance(price, (int, float)):
         price = resolve_ref(payload, raw.get("prettyPrice"))
@@ -221,7 +236,9 @@ def parse_product_record(
     return {
         "external_id": str(product_id),
         "brand": brand_name,
-        "title": f"{brand_name} {name}".strip(),
+        # Title: prefer "BRAND Model Name — type" over bare "BRAND type"
+        "title": f"{brand_name} {oskelly_model}".strip() if oskelly_model else f"{brand_name} {name}".strip(),
+        "model_name": oskelly_model,   # structured model, may be None
         "category": category,
         "subcategory": subcategory,
         "size_raw": size,

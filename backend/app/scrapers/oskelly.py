@@ -81,6 +81,7 @@ class OskellyAdapter(MarketplaceAdapter):
                             description=product.get("description") or "",
                             is_sold=product.get("is_sold", False),
                             listed_at=datetime.now(UTC),
+                            model_name=product.get("model_name"),
                         )
                     )
                     if len(listings) >= limit:
