@@ -88,34 +88,70 @@ def _resolve_sizes(payload: list[Any], sizes_ref: Any) -> str | None:
 
 
 OSKELLY_CATEGORY_MAP = {
+    # Bags
     "сумк": "bags",
     "рюкзак": "bags",
     "клатч": "bags",
     "кошел": "bags",
+    "тоут": "bags",
+    "шоппер": "bags",
+    "поясн": "bags",       # поясная сумка = belt bag
+    # Shoes
     "обув": "shoes",
     "ботин": "shoes",
     "кроссов": "shoes",
     "кед": "shoes",
     "сапог": "shoes",
     "туфл": "shoes",
-    "балет": "shoes",
+    "балетк": "shoes",
+    "мюли": "shoes",
+    "лофер": "shoes",
+    "сандал": "shoes",
+    "слипон": "shoes",
+    "эспадрил": "shoes",
+    # Denim
     "джинс": "denim",
     "брюк": "denim",
+    "шорт": "denim",
+    # Outerwear
     "пальт": "outerwear",
     "куртк": "outerwear",
     "пухов": "outerwear",
+    "плащ": "outerwear",
+    "жилет": "outerwear",
+    "бомбер": "outerwear",
+    "анорак": "outerwear",
+    # Knitwear / tops
     "плать": "knitwear",
-    "футбол": "knitwear",
+    "футбол": "knitwear",  # футболка = t-shirt
     "рубаш": "knitwear",
     "свитер": "knitwear",
+    "кардиган": "knitwear",
+    "пуловер": "knitwear",
+    "поло": "knitwear",
+    "худи": "knitwear",
+    "толстов": "knitwear",
+    "блуз": "knitwear",
+    "топ": "knitwear",
+    "юбк": "knitwear",     # юбка = skirt
+    # Jewelry
     "колье": "jewelry",
     "серьг": "jewelry",
     "кулон": "jewelry",
     "браслет": "jewelry",
+    "кольц": "jewelry",
+    "цепочк": "jewelry",
+    # Eyewear
     "очк": "eyewear",
+    "солнцезащ": "eyewear",
+    # Accessories (catch-all)
     "ремен": "accessories",
     "шарф": "accessories",
     "перчат": "accessories",
+    "кепк": "accessories",
+    "шапк": "accessories",
+    "ремень": "accessories",
+    "платок": "accessories",
 }
 
 

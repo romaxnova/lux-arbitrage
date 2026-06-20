@@ -21,22 +21,21 @@ const BROWSER_HEADERS = {
   "Sec-CH-UA-Platform": '"macOS"',
 };
 
-// Brand IDs on Vinted (fetched once via /api/v2/brands in production;
-// hardcoded here to avoid an extra round-trip)
+// Brand IDs on Vinted — verified via /api/v2/brands?keyword=NAME
 const BRAND_IDS: Record<string, number> = {
   prada: 3573,
-  "miu miu": 4490,
-  balenciaga: 1005,
-  "maison margiela": 3432,
-  "rick owens": 62050,
-  diesel: 304,
-  "acne studios": 42059,
-  "chrome hearts": 27609,
-  "saint laurent": 33,
-  gucci: 305,
-  "bottega veneta": 1071,
-  "comme des garçons": 15684,
-  "comme des garcons": 15684,
+  "miu miu": 1745,
+  balenciaga: 2369,
+  "maison margiela": 639289,
+  "rick owens": 145654,
+  diesel: 161,
+  "acne studios": 180798,
+  "chrome hearts": 95106,
+  "saint laurent": 83122,
+  gucci: 567,
+  "bottega veneta": 86972,
+  "comme des garçons": 56974,
+  "comme des garcons": 56974,
 };
 
 /** Extract all Set-Cookie values from a response and deduplicate by name.
@@ -68,9 +67,20 @@ interface VintedItem {
   condition: string;
 }
 
+// Reject obviously non-fashion items (cosmetics, electronics, food, etc.)
+const NON_FASHION_PATTERNS =
+  /\b(parfum|perfume|essence|eau de|fragrance|ml\b|hdmi|cable|câble|supra\b|lacoste\b|pull lacoste|nike\b|adidas\b|new balance|vans\b|converse\b)\b/i;
+
 function parseItems(items: unknown[]): VintedItem[] {
-  return items.map((raw) => {
+  const results: VintedItem[] = [];
+
+  for (const raw of items) {
     const item = raw as Record<string, unknown>;
+    const title = String(item.title ?? "");
+
+    // Skip non-fashion items
+    if (NON_FASHION_PATTERNS.test(title)) continue;
+
     const priceData = (item.price as Record<string, unknown>) || {};
     const photos = (item.photos as Record<string, unknown>[]) || [];
     const photo = (item.photo as Record<string, unknown>) || {};
@@ -80,17 +90,19 @@ function parseItems(items: unknown[]): VintedItem[] {
       (firstPhoto.full_size_url as string | undefined) ??
       null;
 
-    return {
+    results.push({
       id: String(item.id),
-      title: String(item.title ?? ""),
+      title,
       price_eur: parseFloat(String(priceData.amount ?? 0)),
       url: String(item.url ?? `${VINTED_BASE}/items/${item.id}`),
       image_url: imageUrl,
       brand: String(item.brand_title ?? ""),
       size: (item.size_title as string | null) ?? null,
       condition: String(item.status ?? "good"),
-    };
-  });
+    });
+  }
+
+  return results;
 }
 
 export async function GET(request: Request) {
