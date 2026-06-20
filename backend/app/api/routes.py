@@ -347,6 +347,51 @@ async def add_watchlist(
     return item
 
 
+@router.get("/market/category-analysis")
+async def category_analysis(db: Annotated[AsyncSession, Depends(get_db)]):
+    """Average prices per brand+category on each marketplace, ranked by spread (high to low)."""
+    from sqlalchemy import and_
+
+    rows = await db.execute(
+        select(
+            Brand.canonical_name.label("brand"),
+            Brand.slug.label("brand_slug"),
+            Listing.category,
+            Marketplace.slug.label("marketplace"),
+            func.avg(Listing.price_eur).label("avg_price"),
+            func.count(Listing.id).label("listing_count"),
+        )
+        .join(Listing.brand)
+        .join(Listing.marketplace)
+        .where(Listing.is_active.is_(True))
+        .group_by(Brand.canonical_name, Brand.slug, Listing.category, Marketplace.slug)
+        .order_by(Brand.canonical_name, Listing.category)
+    )
+    raw = rows.all()
+
+    # Pivot: {(brand, category): {marketplace: avg_price}}
+    pivot: dict[tuple[str, str, str], dict] = {}
+    for row in raw:
+        key = (row.brand, row.brand_slug, row.category)
+        if key not in pivot:
+            pivot[key] = {"brand": row.brand, "brand_slug": row.brand_slug, "category": row.category}
+        pivot[key][f"{row.marketplace}_avg_eur"] = round(float(row.avg_price or 0), 2)
+        pivot[key][f"{row.marketplace}_count"] = row.listing_count
+
+    # Build result with spread = oskelly_avg - vinted_avg
+    result = []
+    for entry in pivot.values():
+        v = entry.get("vinted_avg_eur", 0)
+        o = entry.get("oskelly_avg_eur", 0)
+        if v > 0 and o > 0:
+            entry["spread_eur"] = round(o - v, 2)
+            entry["spread_pct"] = round((o - v) / v * 100, 1) if v > 0 else 0
+            result.append(entry)
+
+    result.sort(key=lambda x: x.get("spread_eur", 0), reverse=True)
+    return result
+
+
 @router.get("/market/exchange-rates")
 async def exchange_rates():
     from app.services.currency import currency_service

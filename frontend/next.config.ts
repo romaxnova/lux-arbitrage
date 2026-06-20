@@ -9,7 +9,10 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "oskelly.ru" },
       { protocol: "https", hostname: "**.oskelly.ru" },
       { protocol: "https", hostname: "cdn.oskelly.ru" },
+      { protocol: "https", hostname: "images.unsplash.com" },
     ],
+    // Allow direct image URLs from scraped sources without Next.js optimization
+    unoptimized: false,
   },
 };
 

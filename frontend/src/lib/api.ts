@@ -63,6 +63,18 @@ export interface MarketStats {
   buy_recommendations: number;
 }
 
+export interface CategoryAnalysisRow {
+  brand: string;
+  brand_slug: string;
+  category: string;
+  vinted_avg_eur: number;
+  oskelly_avg_eur: number;
+  spread_eur: number;
+  spread_pct: number;
+  vinted_count?: number;
+  oskelly_count?: number;
+}
+
 async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
@@ -83,5 +95,6 @@ export const api = {
   getBrands: () => fetchApi<{ name: string; slug: string; tier?: string }[]>("/api/v1/brands"),
   getBrand: (slug: string) => fetchApi<BrandAnalytics>(`/api/v1/brands/${slug}`),
   getStats: () => fetchApi<MarketStats>("/api/v1/market/stats"),
+  getCategoryAnalysis: () => fetchApi<CategoryAnalysisRow[]>("/api/v1/market/category-analysis"),
   triggerPipeline: () => fetchApi<{ status: string; stats: Record<string, number> }>("/api/v1/admin/scrape/trigger", { method: "POST" }),
 };

@@ -5,6 +5,8 @@ import { api } from "@/lib/api";
 import { formatEur, formatPct, recColor } from "@/lib/utils";
 import { ScoreBar } from "@/components/score-bar";
 
+export const dynamic = "force-dynamic";
+
 export default async function OpportunityPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   let opp;
@@ -14,16 +16,61 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
     notFound();
   }
 
+  const sellImg = opp.sale_listing.image_urls[0];
+  const buyImg = opp.purchase_listing.image_urls[0];
+
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-8">
       <Link href="/" className="text-sm text-muted hover:text-foreground">← Back to dashboard</Link>
 
       <header className="flex flex-col md:flex-row gap-6">
-        <div className="relative w-full md:w-80 h-80 rounded-xl overflow-hidden bg-white/5 shrink-0">
-          {opp.purchase_listing.image_urls[0] && (
-            <Image src={opp.purchase_listing.image_urls[0]} alt={opp.purchase_listing.title} fill className="object-cover" />
-          )}
+        {/* Both listing images side by side */}
+        <div className="flex gap-3 shrink-0">
+          <div className="space-y-1 text-center">
+            <div className="relative w-44 h-44 rounded-xl overflow-hidden bg-white/5">
+              {buyImg ? (
+                <Image src={buyImg} alt={opp.purchase_listing.title} fill className="object-cover" unoptimized />
+              ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
+                  <span className="text-2xl">🛍</span>
+                  <span className="text-xs text-muted text-center px-2">Search on Vinted</span>
+                </div>
+              )}
+            </div>
+            <a
+              href={opp.purchase_listing.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block text-xs px-3 py-1 rounded bg-white/5 border border-border text-muted hover:text-foreground transition-colors"
+            >
+              🛍 Buy on Vinted →
+            </a>
+          </div>
+
+          <div className="flex items-center text-muted text-xl font-bold">→</div>
+
+          <div className="space-y-1 text-center">
+            <div className="relative w-44 h-44 rounded-xl overflow-hidden bg-white/5">
+              {sellImg ? (
+                <Image src={sellImg} alt={opp.sale_listing.title} fill className="object-cover" unoptimized />
+              ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
+                  <span className="text-2xl">💰</span>
+                  <span className="text-xs text-muted">Oskelly listing</span>
+                </div>
+              )}
+            </div>
+            <a
+              href={opp.sale_listing.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block text-xs px-3 py-1 rounded bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors"
+            >
+              💰 Sell on Oskelly →
+            </a>
+          </div>
         </div>
+
         <div className="flex-1 space-y-4">
           <div className="flex items-start gap-3">
             <span className={`text-sm font-semibold px-3 py-1 rounded border ${recColor(opp.recommendation)}`}>
@@ -33,22 +80,16 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
           </div>
           <div>
             <p className="text-sm text-muted">{opp.brand.name} · {opp.purchase_listing.category}</p>
-            <h1 className="text-2xl font-bold mt-1">{opp.purchase_listing.title}</h1>
+            <h1 className="text-xl font-bold mt-1">{opp.sale_listing.title}</h1>
+            <p className="text-sm text-muted mt-0.5">Vinted search: {opp.purchase_listing.title}</p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Metric label="Purchase Cost" value={formatEur(opp.purchase_cost_eur)} />
             <Metric label="Expected Sale" value={formatEur(opp.expected_sale_price_eur)} />
             <Metric label="Gross Profit" value={formatEur(opp.gross_profit_eur)} highlight />
-            <Metric label="ROI" value={formatPct(opp.roi)} highlight />
+            <Metric label="Net Profit" value={formatEur(opp.net_profit_eur)} highlight />
           </div>
-          <div className="flex gap-3">
-            <a href={opp.purchase_listing.url} target="_blank" rel="noopener" className="text-sm text-accent hover:underline">
-              View on Vinted →
-            </a>
-            <a href={opp.sale_listing.url} target="_blank" rel="noopener" className="text-sm text-accent hover:underline">
-              View on Oskelly →
-            </a>
-          </div>
+          <p className="text-sm text-muted font-mono">ROI: {formatPct(opp.roi)}</p>
         </div>
       </header>
 
@@ -78,19 +119,29 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
         </section>
       </div>
 
+      {/* Oskelly listing detail */}
       <section className="card-glow rounded-xl p-6">
-        <h2 className="font-semibold mb-4">Matching Oskelly Listing</h2>
-        <div className="flex gap-4 items-center">
-          <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-white/5">
-            {opp.sale_listing.image_urls[0] && (
-              <Image src={opp.sale_listing.image_urls[0]} alt="" fill className="object-cover" />
-            )}
-          </div>
-          <div>
+        <h2 className="font-semibold mb-4">Oskelly Listing (sell side)</h2>
+        <div className="flex gap-4 items-start">
+          {sellImg && (
+            <div className="relative w-24 h-24 rounded-lg overflow-hidden bg-white/5 shrink-0">
+              <Image src={sellImg} alt="" fill className="object-cover" unoptimized />
+            </div>
+          )}
+          <div className="space-y-1">
             <p className="font-medium">{opp.sale_listing.title}</p>
             <p className="text-sm text-muted">
-              {formatEur(opp.sale_listing.price_eur)} · {opp.sale_listing.condition} · Size {opp.sale_listing.size_normalized || "N/A"}
+              Listed at {formatEur(opp.sale_listing.price_eur)} · {opp.sale_listing.condition}
+              {opp.sale_listing.size_normalized ? ` · Size ${opp.sale_listing.size_normalized}` : ""}
             </p>
+            <a
+              href={opp.sale_listing.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-accent hover:underline"
+            >
+              View on Oskelly →
+            </a>
           </div>
         </div>
       </section>

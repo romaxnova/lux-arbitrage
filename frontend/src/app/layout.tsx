@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BarChart3, Gem, LayoutDashboard, TrendingUp } from "lucide-react";
+import { BarChart3, Gem, LayoutDashboard, Layers, TrendingUp } from "lucide-react";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -10,6 +10,7 @@ export const metadata: Metadata = {
 
 const nav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/categories", label: "Categories", icon: Layers },
   { href: "/brands", label: "Brands", icon: Gem },
   { href: "/rankings", label: "Rankings", icon: TrendingUp },
   { href: "/alerts", label: "Alerts", icon: BarChart3 },

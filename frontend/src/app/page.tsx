@@ -16,7 +16,7 @@ export default async function DashboardPage() {
   try {
     [stats, opportunities, topRoi] = await Promise.all([
       api.getStats(),
-      api.getOpportunities({ sort: "score", page_size: "12" }),
+      api.getOpportunities({ sort: "score", page_size: "12", min_profit: "250" }),
       api.getRankings("highest_roi"),
     ]);
   } catch (e) {
@@ -48,9 +48,12 @@ export default async function DashboardPage() {
 
       <section>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Best Opportunities Right Now</h2>
-          <Link href="/?recommendation=BUY" className="text-sm text-accent hover:underline">
-            View all BUY →
+          <div>
+            <h2 className="text-xl font-semibold">Best Opportunities Right Now</h2>
+            <p className="text-xs text-muted mt-0.5">Filtered: gross profit &gt; €250</p>
+          </div>
+          <Link href="/rankings" className="text-sm text-accent hover:underline">
+            All rankings →
           </Link>
         </div>
         <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
