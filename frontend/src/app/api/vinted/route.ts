@@ -108,11 +108,12 @@ function parseItems(items: unknown[]): VintedItem[] {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const brand = searchParams.get("brand") ?? "";
+  // item_type_en: English type phrase to narrow the search (e.g. "sneakers", "tote bag")
+  const itemTypeEn = searchParams.get("item_type") ?? "";
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "10"), 20);
-  const minPrice = searchParams.get("min_price") ?? "100";
+  const minPrice = searchParams.get("min_price") ?? "80";
 
   try {
-    // 1. Bootstrap — visit catalog to receive session cookies (including access_token_web)
     const bootstrapRes = await fetch(`${VINTED_BASE}/catalog`, {
       headers: {
         ...BROWSER_HEADERS,
@@ -130,22 +131,28 @@ export async function GET(request: Request) {
       return Response.json({ items: [], error: "No cookies from Vinted bootstrap" }, { status: 502 });
     }
 
-    // 2. Build catalog API query
     const brandKey = brand.toLowerCase();
     const brandId = BRAND_IDS[brandKey];
+
     const params = new URLSearchParams({
       per_page: String(limit),
       page: "1",
       order: "newest_first",
       price_from: minPrice,
     });
+
+    // Use brand_id filter when available + item_type_en as search_text.
+    // Combining both narrows results to the correct brand AND item type
+    // (e.g. Gucci brand_id + search_text="tote bag" → real Gucci tote bags).
     if (brandId) {
       params.set("brand_ids[]", String(brandId));
-    } else if (brand) {
+    }
+    if (itemTypeEn) {
+      params.set("search_text", itemTypeEn);
+    } else if (!brandId && brand) {
       params.set("search_text", brand);
     }
 
-    // 3. Fetch catalog items using the session cookies
     const apiRes = await fetch(`${VINTED_BASE}/api/v2/catalog/items?${params}`, {
       headers: {
         ...BROWSER_HEADERS,

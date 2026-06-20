@@ -45,12 +45,20 @@ class VintedProxyAdapter(MarketplaceAdapter):
     def _available(self) -> bool:
         return bool(self.proxy_url)
 
-    async def fetch_listings(self, brand: str, category: str, limit: int = 20) -> list[RawListing]:
+    async def fetch_listings(
+        self,
+        brand: str,
+        category: str,
+        limit: int = 20,
+        item_type_en: str = "",
+    ) -> list[RawListing]:
         if not self._available():
             return []
 
         endpoint = f"{self.proxy_url}/api/vinted"
-        params = {"brand": brand, "limit": limit, "min_price": str(self.min_price_eur)}
+        params: dict = {"brand": brand, "limit": limit, "min_price": str(self.min_price_eur)}
+        if item_type_en:
+            params["item_type"] = item_type_en
 
         try:
             async with httpx.AsyncClient(timeout=30) as client:

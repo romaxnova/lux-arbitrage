@@ -12,6 +12,96 @@ from app.core.constants import (
     SHOE_SIZE_MAP,
 )
 
+# Maps Russian keyword fragments (case-insensitive) to an English item-type
+# search phrase used when querying Vinted for matching listings.
+# Ordered from most-specific to least-specific — first match wins.
+RUSSIAN_TO_ITEM_TYPE: list[tuple[str, str, str]] = [
+    # shoes
+    ("кроссовк", "shoes", "sneakers"),
+    ("кроссов",  "shoes", "sneakers"),
+    ("сникер",   "shoes", "sneakers"),
+    ("ботинк",   "shoes", "boots"),
+    ("ботин",    "shoes", "boots"),
+    ("сапог",    "shoes", "boots"),
+    ("туфл",     "shoes", "heels"),
+    ("балетк",   "shoes", "ballet flats"),
+    ("балетки",  "shoes", "ballet flats"),
+    ("лофер",    "shoes", "loafers"),
+    ("мюли",     "shoes", "mules"),
+    ("сандал",   "shoes", "sandals"),
+    ("босоножк", "shoes", "sandals"),
+    ("слипон",   "shoes", "slip-on"),
+    ("кед",      "shoes", "sneakers"),
+    ("обув",     "shoes", "shoes"),
+    ("эспадрил", "shoes", "espadrilles"),
+    ("кабоши",   "shoes", "shoes"),
+    # bags
+    ("тоут",     "bags",  "tote bag"),
+    ("шоппер",   "bags",  "shopper bag"),
+    ("клатч",    "bags",  "clutch"),
+    ("кошел",    "bags",  "wallet"),
+    ("кошелек",  "bags",  "wallet"),
+    ("рюкзак",   "bags",  "backpack"),
+    ("поясн",    "bags",  "belt bag"),
+    ("сумк",     "bags",  "bag"),
+    ("сумка",    "bags",  "bag"),
+    ("портфел",  "bags",  "briefcase"),
+    # outerwear
+    ("пухов",    "outerwear", "down jacket"),
+    ("бомбер",   "outerwear", "bomber jacket"),
+    ("анорак",   "outerwear", "anorak"),
+    ("пальт",    "outerwear", "coat"),
+    ("куртк",    "outerwear", "jacket"),
+    ("плащ",     "outerwear", "raincoat"),
+    ("жилет",    "outerwear", "vest"),
+    # denim / trousers
+    ("джинс",    "denim",   "jeans"),
+    ("брюки",    "denim",   "trousers"),
+    ("брюк",     "denim",   "trousers"),
+    ("шорт",     "denim",   "shorts"),
+    # knitwear / tops
+    ("кардиган", "knitwear", "cardigan"),
+    ("пуловер",  "knitwear", "pullover"),
+    ("свитер",   "knitwear", "sweater"),
+    ("худи",     "knitwear", "hoodie"),
+    ("толстов",  "knitwear", "sweatshirt"),
+    ("поло",     "knitwear", "polo shirt"),
+    ("лонгслив", "knitwear", "long sleeve"),
+    ("футболк",  "knitwear", "t-shirt"),
+    ("футбол",   "knitwear", "t-shirt"),
+    ("рубашк",   "knitwear", "shirt"),
+    ("рубаш",    "knitwear", "shirt"),
+    ("блуз",     "knitwear", "blouse"),
+    ("топ",      "knitwear", "top"),
+    ("плать",    "knitwear", "dress"),
+    ("юбк",      "knitwear", "skirt"),
+    # jewelry
+    ("колье",    "jewelry",  "necklace"),
+    ("серьг",    "jewelry",  "earrings"),
+    ("кулон",    "jewelry",  "pendant"),
+    ("браслет",  "jewelry",  "bracelet"),
+    ("кольц",    "jewelry",  "ring"),
+    ("цепочк",   "jewelry",  "chain"),
+    ("кольцо",   "jewelry",  "ring"),
+    # eyewear
+    ("солнцезащ","eyewear",  "sunglasses"),
+    ("очки",     "eyewear",  "sunglasses"),
+    ("очк",      "eyewear",  "sunglasses"),
+]
+
+
+def extract_item_type(title: str) -> tuple[str, str]:
+    """Return (category, english_search_phrase) from a Russian Oskelly title.
+
+    Uses the first matching Russian keyword fragment.
+    Falls back to ("accessories", "") when nothing matches.
+    """
+    lower = title.lower()
+    for fragment, category, english in RUSSIAN_TO_ITEM_TYPE:
+        if fragment in lower:
+            return category, english
+    return "accessories", ""
+
 
 def slugify(text: str) -> str:
     text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
