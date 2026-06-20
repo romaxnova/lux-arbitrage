@@ -68,7 +68,6 @@ export function OpportunityCard({ opportunity: opp }: { opportunity: Opportunity
             href={buyUrl}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
             className="flex-1 text-center text-xs px-2 py-1.5 rounded bg-white/5 hover:bg-white/10 border border-border text-muted hover:text-foreground transition-colors"
           >
             🛍 Buy (Vinted)
@@ -77,7 +76,6 @@ export function OpportunityCard({ opportunity: opp }: { opportunity: Opportunity
             href={sellUrl}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
             className="flex-1 text-center text-xs px-2 py-1.5 rounded bg-accent/10 hover:bg-accent/20 border border-accent/20 text-accent transition-colors"
           >
             💰 Sell (Oskelly)
