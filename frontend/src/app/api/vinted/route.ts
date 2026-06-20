@@ -62,6 +62,7 @@ interface VintedItem {
   price_eur: number;
   url: string;
   image_url: string | null;
+  image_urls: string[];
   brand: string;
   size: string | null;
   condition: string;
@@ -84,18 +85,24 @@ function parseItems(items: unknown[]): VintedItem[] {
     const priceData = (item.price as Record<string, unknown>) || {};
     const photos = (item.photos as Record<string, unknown>[]) || [];
     const photo = (item.photo as Record<string, unknown>) || {};
-    const firstPhoto = photos[0] ?? photo;
-    const imageUrl =
-      (firstPhoto.url as string | undefined) ??
-      (firstPhoto.full_size_url as string | undefined) ??
-      null;
+    const photoPool = photos.length ? photos : photo.url ? [photo] : [];
+    const imageUrls = photoPool
+      .map(
+        (p) =>
+          (p.url as string | undefined) ??
+          (p.full_size_url as string | undefined) ??
+          null
+      )
+      .filter((u): u is string => Boolean(u))
+      .slice(0, 5);
 
     results.push({
       id: String(item.id),
       title,
       price_eur: parseFloat(String(priceData.amount ?? 0)),
       url: String(item.url ?? `${VINTED_BASE}/items/${item.id}`),
-      image_url: imageUrl,
+      image_url: imageUrls[0] ?? null,
+      image_urls: imageUrls,
       brand: String(item.brand_title ?? ""),
       size: (item.size_title as string | null) ?? null,
       condition: String(item.status ?? "good"),

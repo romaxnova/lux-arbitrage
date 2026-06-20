@@ -1,11 +1,12 @@
 import Link from "next/link";
 import Image from "next/image";
 import type { Opportunity } from "@/lib/api";
-import { formatEur, formatPct, recColor } from "@/lib/utils";
+import { formatEur, formatPct, recColor, firstImage } from "@/lib/utils";
 
 export function OpportunityCard({ opportunity: opp }: { opportunity: Opportunity }) {
-  // Prefer the Oskelly (sale) image since it has real photos; fall back to buy side
-  const img = opp.sale_listing.image_urls[0] || opp.purchase_listing.image_urls[0];
+  // Prefer the Oskelly (sale) image since it has real photos; fall back to buy
+  // side. Both are routed through the edge image proxy for stable rendering.
+  const img = firstImage(opp.sale_listing.image_urls, opp.purchase_listing.image_urls);
   const buyUrl = opp.purchase_listing.url;
   const sellUrl = opp.sale_listing.url;
 

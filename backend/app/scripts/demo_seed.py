@@ -215,6 +215,9 @@ async def run_demo_seed(db) -> dict:
                     best = sorted(valid, key=lambda i: (bool(i.get("image_url")), i["price_eur"]), reverse=True)[0]
 
                 if best:
+                    best_images = [u for u in (best.get("image_urls") or []) if u]
+                    if not best_images and best.get("image_url"):
+                        best_images = [best["image_url"]]
                     v_ext_id = f"vm_{brand_slug}_{slugify(model_entry['canonical'])}"
                     vl = await _upsert(
                         db, mp=vinted_mp, brand=brand,
@@ -226,7 +229,7 @@ async def run_demo_seed(db) -> dict:
                         price_eur=Decimal(str(best["price_eur"])),
                         currency="EUR",
                         listing_url=best["url"],
-                        image_urls=[best["image_url"]] if best.get("image_url") else [],
+                        image_urls=best_images,
                         description=best["title"],
                     )
                     if vl:

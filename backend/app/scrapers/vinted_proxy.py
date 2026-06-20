@@ -84,7 +84,16 @@ class VintedProxyAdapter(MarketplaceAdapter):
             if price_eur < self.min_price_eur:
                 continue
 
-            image_url = item.get("image_url")
+            # Prefer the full image_urls array (newer proxy), fall back to the
+            # single image_url for backward compatibility.
+            image_urls = [u for u in (item.get("image_urls") or []) if u]
+            if not image_urls and item.get("image_url"):
+                image_urls = [item["image_url"]]
+
+            listing_url = item.get("url") or f"https://www.vinted.fr/items/{item['id']}"
+            if listing_url.startswith("//"):
+                listing_url = "https:" + listing_url
+
             listings.append(
                 RawListing(
                     external_id=str(item["id"]),
@@ -98,8 +107,8 @@ class VintedProxyAdapter(MarketplaceAdapter):
                     price=__import__("decimal").Decimal(str(price_eur)),
                     currency="EUR",
                     seller_country="FR",
-                    listing_url=item.get("url") or f"https://www.vinted.fr/items/{item['id']}",
-                    image_urls=[image_url] if image_url else [],
+                    listing_url=listing_url,
+                    image_urls=image_urls,
                     description=title,
                     is_sold=False,
                     listed_at=datetime.now(UTC),

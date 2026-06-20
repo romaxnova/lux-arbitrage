@@ -43,10 +43,24 @@ def _resolve_category(payload: list[Any], category_ref: Any) -> tuple[str, str |
 
 
 def _upgrade_image_url(url: str) -> str:
-    """Oskelly CDN stores thumbnails as 'tiny-UUID' and full images as 'item-UUID'.
-    Replace the tiny prefix so the card shows a usable full-size photo."""
-    if "/tiny-" in url:
-        return url.replace("/tiny-", "/item-")
+    """Normalise an Oskelly CDN image URL to a stable, full-size, absolute https form.
+
+    Oskelly stores thumbnails as 'tiny-UUID' / 'small-UUID' / 'medium-UUID' and
+    the full image as 'item-UUID'. We upgrade any thumbnail prefix to the full
+    size and guarantee an absolute https URL so the proxy can always fetch it."""
+    if not url:
+        return url
+    # Protocol-relative or scheme-less → force https
+    if url.startswith("//"):
+        url = "https:" + url
+    elif url.startswith("/"):
+        url = "https://oskelly.ru" + url
+    elif url.startswith("http://"):
+        url = "https://" + url[len("http://"):]
+    for prefix in ("/tiny-", "/small-", "/medium-", "/thumb-"):
+        if prefix in url:
+            url = url.replace(prefix, "/item-")
+            break
     return url
 
 
@@ -247,7 +261,10 @@ def parse_product_record(
         "price": price,
         "currency": "RUB",
         "seller_country": "RU",
-        "listing_url": url_map.get(product_id, f"https://oskelly.ru/product/{product_id}"),
+        # Prefer the canonical /products/<slug>-<id> URL scraped from anchors.
+        # Fallback to the plural /products/<id> form, which Oskelly redirects to
+        # the canonical page (the old singular /product/<id> 404s).
+        "listing_url": url_map.get(product_id, f"https://oskelly.ru/products/{product_id}"),
         "image_urls": images,
         "description": description if isinstance(description, str) else "",
         "is_sold": is_sold,

@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
-import { formatEur, formatPct, recColor } from "@/lib/utils";
+import { formatEur, formatPct, recColor, firstImage } from "@/lib/utils";
 import { ScoreBar } from "@/components/score-bar";
 
 export const dynamic = "force-dynamic";
@@ -16,8 +16,8 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
     notFound();
   }
 
-  const sellImg = opp.sale_listing.image_urls[0];
-  const buyImg = opp.purchase_listing.image_urls[0];
+  const sellImg = firstImage(opp.sale_listing.image_urls);
+  const buyImg = firstImage(opp.purchase_listing.image_urls);
 
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-8">
