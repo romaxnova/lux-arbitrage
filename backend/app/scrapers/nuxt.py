@@ -107,8 +107,12 @@ OSKELLY_CATEGORY_MAP = {
     "мюли": "shoes",
     "лофер": "shoes",
     "сандал": "shoes",
+    "босоножк": "shoes",   # босоножки = sandals/open shoes
+    "кабоши": "shoes",
     "слипон": "shoes",
     "эспадрил": "shoes",
+    "кроссовк": "shoes",
+    "сникер": "shoes",
     # Denim
     "джинс": "denim",
     "брюк": "denim",

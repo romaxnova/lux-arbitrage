@@ -156,28 +156,22 @@ async def list_opportunities(
     }
     query = query.order_by(sort_map.get(sort, Opportunity.opportunity_score.desc()))
 
-    count_query = select(func.count(Opportunity.id))
-    if brand:
-        count_query = count_query.join(Opportunity.purchase_listing).join(Listing.brand).where(Brand.slug == brand)
-    if category:
-        if not brand:
-            count_query = count_query.join(Opportunity.purchase_listing)
-        count_query = count_query.where(Listing.category == category)
-    if min_profit is not None:
-        count_query = count_query.where(Opportunity.gross_profit_eur >= min_profit)
-    if min_roi is not None:
-        count_query = count_query.where(Opportunity.roi >= min_roi)
-    if min_demand is not None:
-        count_query = count_query.where(Opportunity.demand_score >= min_demand)
-    if max_risk is not None:
-        count_query = count_query.where(Opportunity.risk_score <= max_risk)
-    if recommendation:
-        count_query = count_query.where(Opportunity.recommendation == recommendation.upper())
+    # Fetch all candidates (with extra headroom) and deduplicate by sale listing
+    # so the same Oskelly product is shown at most once (the best match wins).
+    fetch_limit = min(page_size * 10, 500)
+    result = await db.execute(query.limit(fetch_limit))
+    all_opps = result.scalars().unique().all()
 
-    total = (await db.execute(count_query)).scalar() or 0
+    seen_sale_ids: set = set()
+    unique_opps = []
+    for o in all_opps:
+        if o.sale_listing_id not in seen_sale_ids:
+            seen_sale_ids.add(o.sale_listing_id)
+            unique_opps.append(o)
 
-    result = await db.execute(query.offset((page - 1) * page_size).limit(page_size))
-    items = [opportunity_out(o) for o in result.scalars().unique().all()]
+    total = len(unique_opps)
+    start = (page - 1) * page_size
+    items = [opportunity_out(o) for o in unique_opps[start : start + page_size]]
     return PaginatedResponse(items=items, total=total, page=page, page_size=page_size)
 
 
@@ -208,7 +202,14 @@ async def rankings(ranking_type: str, db: Annotated[AsyncSession, Depends(get_db
         query = query.where(Opportunity.opportunity_score >= 50)
 
     result = await db.execute(query)
-    return [opportunity_out(o) for o in result.scalars().all()]
+    # Deduplicate by sale listing — each Oskelly item shown at most once
+    seen: set = set()
+    deduped = []
+    for o in result.scalars().all():
+        if o.sale_listing_id not in seen:
+            seen.add(o.sale_listing_id)
+            deduped.append(o)
+    return [opportunity_out(o) for o in deduped]
 
 
 @router.get("/opportunities/{opportunity_id}", response_model=OpportunityDetail)
