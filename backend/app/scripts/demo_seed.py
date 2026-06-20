@@ -210,6 +210,22 @@ async def run_demo_seed(db) -> dict:
                     best = vinted_items_sorted[0] if vinted_items_sorted else None
 
                     if best and _estimate_profit(oskelly_eur, best["price_eur"]) >= MIN_GROSS_PROFIT_EUR:
+                        # Sanity-check: the Vinted listing title must be plausibly
+                        # the same type as the Oskelly listing we're pairing with.
+                        from app.services.normalization import extract_item_type as _eit
+                        vinted_cat, _ = _eit(best["title"]) if _eit(best["title"])[1] else (category, item_type_en)
+                        # Also run the English keyword-based category check
+                        from app.scrapers.vinted_maps import infer_category_from_title as _infer
+                        vinted_cat_en = _infer(best["title"])
+                        # Accept if categories agree or if we can't determine from the title
+                        if vinted_cat_en != "accessories" and vinted_cat_en != category:
+                            logger.debug(
+                                "Skipping Vinted '%s' (cat=%s, expected %s)",
+                                best["title"][:40], vinted_cat_en, category
+                            )
+                            best = None
+
+                if best and _estimate_profit(oskelly_eur, best["price_eur"]) >= MIN_GROSS_PROFIT_EUR:
                         v_ext_id = f"vp_{brand_slug}_{item_type_en.replace(' ', '_')}"
                         vl = await _upsert_listing(
                             db,

@@ -55,13 +55,34 @@ def map_vinted_condition(status: str | None) -> str:
 def infer_category_from_title(title: str, default: str = "accessories") -> str:
     lower = title.lower()
     rules = [
-        (["sneaker", "shoe", "boot", "chaussure", "talons", "tabi"], "shoes"),
-        (["bag", "sac", "pochette", "bolso"], "bags"),
-        (["jean", "denim"], "denim"),
-        (["coat", "jacket", "blouson", "manteau"], "outerwear"),
-        (["sweater", "pull", "shirt", "tee", "top"], "knitwear"),
-        (["necklace", "ring", "jewel", "pendant"], "jewelry"),
-        (["sunglass", "glasses", "lunettes"], "eyewear"),
+        # shoes — EN/FR/IT/DE/NL
+        (["sneaker", "shoe", "boot", "chaussure", "talons", "tabi",
+          "scarpa", "scarpe", "stiefel", "schuh", "schoenen",
+          "loafer", "mocassin", "mocassino", "sandale", "sandal",
+          "heel", "pump", "flat", "ballerina", "espadrille", "mule",
+          "slip-on", "slipon", "sabot", "ciabatta", "schuhe",
+          "sandl", "sandles", "wedge", "derby",
+          "runner", "trainer", "sneaker", "basketball shoe"], "shoes"),
+        # bags — EN/FR/IT/DE/NL
+        (["bag", "sac", "pochette", "bolso", "borsa", "borsellino",
+          "tasche", "handtas", "clutch", "tote", "backpack", "wallet",
+          "purse", "porte-monnaie", "portafoglio", "portemonnaie"], "bags"),
+        # denim
+        (["jean", "denim", "jeans", "pantalon", "broek"], "denim"),
+        # outerwear — EN/FR/IT/DE/NL
+        (["coat", "jacket", "blouson", "manteau", "veste", "jas",
+          "giaccone", "cappotto", "jacke", "parka", "bomber", "vest"], "outerwear"),
+        # knitwear / tops — EN/FR/IT/DE/NL
+        (["sweater", "pull", "shirt", "tee", "top", "hoodie",
+          "sweatshirt", "cardigan", "polo", "maglia", "maglione",
+          "bluse", "dress", "robe", "gonna", "skirt", "longsleeve",
+          "trui", "jurk", "rok"], "knitwear"),
+        # jewelry
+        (["necklace", "ring", "jewel", "pendant", "bracelet",
+          "earring", "collier", "bague", "bijou"], "jewelry"),
+        # eyewear — EN/FR/IT/DE/NL
+        (["sunglass", "glasses", "lunettes", "occhiali", "brille",
+          "bril", "montuur", "eyewear", "sunglasses"], "eyewear"),
     ]
     for keywords, cat in rules:
         if any(k in lower for k in keywords):
