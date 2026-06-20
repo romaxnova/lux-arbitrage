@@ -29,11 +29,16 @@ class VintedAdapter(MarketplaceAdapter):
     def base_url(self) -> str:
         return f"https://www.vinted.{self.domain}"
 
-    async def _bootstrap(self, client: RateLimitedClient) -> None:
-        await client.get(
+    async def _bootstrap(self, client: RateLimitedClient) -> bool:
+        """Bootstrap session cookies. Returns True if successful."""
+        resp = await client.get(
             f"{self.base_url}/catalog",
             headers={"Accept": "text/html", "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8"},
         )
+        if resp.status_code == 403:
+            logger.warning("Vinted %s is blocking this server's IP (403). Skipping Vinted scrape.", self.domain)
+            return False
+        return resp.status_code == 200
 
     async def _resolve_brand_id(self, client: RateLimitedClient, brand_name: str) -> int | None:
         key = brand_name.lower().strip()
@@ -45,6 +50,9 @@ class VintedAdapter(MarketplaceAdapter):
             params={"keyword": brand_name},
             headers={"Accept": "application/json", "Accept-Language": "fr-FR,fr;q=0.9"},
         )
+        if response.status_code == 403:
+            logger.warning("Vinted API blocked (403) for brand lookup: %s", brand_name)
+            return None
         if response.status_code != 200:
             return None
 
@@ -109,7 +117,9 @@ class VintedAdapter(MarketplaceAdapter):
         seen_ids: set[str] = set()
 
         async with RateLimitedClient(requests_per_second=0.8) as client:
-            await self._bootstrap(client)
+            ok = await self._bootstrap(client)
+            if not ok:
+                return []
             brand_id = await self._resolve_brand_id(client, brand)
             if not brand_id:
                 logger.warning("Vinted brand not found: %s", brand)

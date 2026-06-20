@@ -11,8 +11,33 @@ from app.database import engine, init_db
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    await _auto_seed_if_empty()
     yield
     await engine.dispose()
+
+
+async def _auto_seed_if_empty() -> None:
+    """Run demo seed on first startup when the database has no opportunities."""
+    import logging
+
+    from sqlalchemy import func, select
+
+    from app.database import AsyncSessionLocal
+    from app.models import Opportunity
+
+    logger = logging.getLogger(__name__)
+    try:
+        async with AsyncSessionLocal() as db:
+            count = (await db.execute(select(func.count()).select_from(Opportunity))).scalar() or 0
+            if count == 0:
+                logger.info("Database empty — running demo seed...")
+                from app.scripts.demo_seed import run_demo_seed
+
+                stats = await run_demo_seed(db)
+                await db.commit()
+                logger.info("Demo seed complete: %s", stats)
+    except Exception as exc:
+        logging.getLogger(__name__).warning("Auto-seed failed (non-fatal): %s", exc)
 
 
 def create_app() -> FastAPI:

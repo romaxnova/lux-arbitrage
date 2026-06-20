@@ -55,7 +55,8 @@ def clean_title(title: str, brand: str | None = None) -> str:
         for part in brand.lower().split():
             text = text.replace(part, " ")
     tokens = []
-    for token in re.findall(r"[a-z0-9]+", text):
+    # Use \w to capture Unicode word chars (Latin, Cyrillic, etc.) plus digits
+    for token in re.findall(r"[\w]+", text, re.UNICODE):
         if token not in NOISE_WORDS and len(token) > 1:
             tokens.append(token)
     return " ".join(tokens)
@@ -113,7 +114,7 @@ def category_match_score(cat_a: str, sub_a: str | None, cat_b: str, sub_b: str |
     if cat_a == cat_b and sub_a and sub_b and sub_a == sub_b:
         return 100.0
     if cat_a == cat_b:
-        return 70.0
+        return 85.0
     related = {"outerwear", "knitwear"}
     if cat_a in related and cat_b in related:
         return 30.0

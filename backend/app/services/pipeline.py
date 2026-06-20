@@ -6,7 +6,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import selectinload
 
 from app.config import get_settings
@@ -292,9 +292,9 @@ async def run_matching(db) -> int:
             if existing.scalar_one_or_none():
                 continue
 
-            # Remove weaker matches for same source
+            # Remove weaker matches for same source so only the best match persists
             await db.execute(
-                update(Match)
+                delete(Match)
                 .where(Match.source_listing_id == source.id)
                 .where(Match.match_confidence < best_confidence)
             )

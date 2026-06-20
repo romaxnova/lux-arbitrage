@@ -68,9 +68,9 @@ def compute_purchase_cost(
     listing: Listing,
     marketplace: Marketplace,
 ) -> tuple[Decimal, dict]:
-    price = listing.price_eur
-    shipping = marketplace.default_shipping_eur
-    buyer_fee = price * marketplace.buyer_fee_pct + Decimal("0.70")
+    price = Decimal(str(listing.price_eur))
+    shipping = Decimal(str(marketplace.default_shipping_eur))
+    buyer_fee = price * Decimal(str(marketplace.buyer_fee_pct)) + Decimal("0.70")
     fx_cost = price * Decimal("0.005") if listing.currency_original != "EUR" else Decimal("0")
     import_cost = (price + shipping) * Decimal("0.15")
 
@@ -97,8 +97,8 @@ def compute_expected_sale(
         "fair": Decimal("0.85"),
     }.get(target.condition, Decimal("0.92"))
 
-    gross = (target.price_eur * condition_mult).quantize(Decimal("0.01"))
-    seller_fee = (gross * marketplace.seller_fee_pct).quantize(Decimal("0.01"))
+    gross = (Decimal(str(target.price_eur)) * condition_mult).quantize(Decimal("0.01"))
+    seller_fee = (gross * Decimal(str(marketplace.seller_fee_pct))).quantize(Decimal("0.01"))
     net = gross - seller_fee
     return gross, net.quantize(Decimal("0.01"))
 

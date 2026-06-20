@@ -16,6 +16,16 @@ DEFAULT_HEADERS = {
         "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
     ),
     "Accept-Language": "en-US,en;q=0.9",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Encoding": "gzip, deflate, br",
+    "DNT": "1",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-CH-UA": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+    "Sec-CH-UA-Mobile": "?0",
+    "Sec-CH-UA-Platform": '"Windows"',
 }
 
 
@@ -64,8 +74,14 @@ class RateLimitedClient:
             try:
                 response = await self._client.get(url, headers=headers, **kwargs)
                 if response.status_code in (429, 503):
-                    await asyncio.sleep(2**attempt)
+                    wait = min(30, 2 ** (attempt + 1))
+                    logger.warning("Rate limited (%s) on %s, waiting %ss", response.status_code, url, wait)
+                    await asyncio.sleep(wait)
                     continue
+                if response.status_code == 403:
+                    logger.warning("Access denied (403) on %s — bot protection active", url)
+                    # Don't retry 403 — the IP is likely blocked
+                    return response
                 return response
             except httpx.HTTPError as exc:
                 logger.warning("HTTP error %s (attempt %s): %s", url, attempt + 1, exc)

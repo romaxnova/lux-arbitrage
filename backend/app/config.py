@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     meilisearch_enabled: bool = False
 
     exchange_rate_api: str = "https://api.frankfurter.app/latest"
-    match_confidence_threshold: float = 72.0
+    match_confidence_threshold: float = 50.0
     opportunity_min_roi: float = 0.15
 
     access_token_expire_minutes: int = 60 * 24

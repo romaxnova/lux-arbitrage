@@ -392,6 +392,19 @@ async def trigger_scrape(db: Annotated[AsyncSession, Depends(get_db)]):
     return {"status": "completed", "stats": stats}
 
 
+@router.post("/admin/seed-demo")
+async def seed_demo(db: Annotated[AsyncSession, Depends(get_db)]):
+    """Populate the database with realistic demo listings and run matching/scoring.
+
+    Safe to call multiple times — skips listings that already exist.
+    Use this when live scrapers are blocked or unavailable.
+    """
+    from app.scripts.demo_seed import run_demo_seed
+
+    stats = await run_demo_seed(db)
+    return {"status": "completed", "stats": stats}
+
+
 @router.post("/admin/matching/run")
 async def trigger_matching(db: Annotated[AsyncSession, Depends(get_db)]):
     from app.services.pipeline import run_matching
