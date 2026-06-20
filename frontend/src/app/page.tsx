@@ -5,6 +5,8 @@ import { OpportunityCard } from "@/components/opportunity-card";
 import { StatCard } from "@/components/stat-card";
 import { RefreshButton } from "@/components/refresh-button";
 
+export const dynamic = "force-dynamic";
+
 export default async function DashboardPage() {
   let stats = { active_listings: 0, opportunities: 0, matches: 0, buy_recommendations: 0 };
   let opportunities: Awaited<ReturnType<typeof api.getOpportunities>> = { items: [], total: 0, page: 1, page_size: 20 };

@@ -1,6 +1,8 @@
 import { api } from "@/lib/api";
 import { OpportunityCard } from "@/components/opportunity-card";
 
+export const dynamic = "force-dynamic";
+
 const RANKINGS = [
   { key: "top", title: "Top Arbitrage Opportunities" },
   { key: "undervalued", title: "Most Undervalued" },

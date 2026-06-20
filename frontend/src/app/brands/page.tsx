@@ -2,6 +2,8 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { formatEur, formatPct } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 export default async function BrandsPage() {
   let brands: Awaited<ReturnType<typeof api.getBrands>> = [];
   try {
