@@ -1,42 +1,28 @@
 /**
  * Vinted proxy API route — runs on Vercel's fra1 (Frankfurt) edge.
- * Vinted blocks US IPs (where Render is hosted) but European Vercel
- * servers can access the Vinted catalog API.
+ * Vinted blocks US IPs (Render) but European Vercel servers can access it.
  *
- * Usage: GET /api/vinted?brand=Prada&category=bags&limit=5
- * Returns: { items: VintedItem[] }
+ * Usage: GET /api/vinted?brand=Prada&limit=5&min_price=200
+ * Returns: { items: VintedItem[], total?: number }
  */
 
 export const runtime = "nodejs";
 export const preferredRegion = "fra1";
 
 const VINTED_BASE = "https://www.vinted.fr";
-const DEFAULT_HEADERS = {
+
+const BROWSER_HEADERS = {
   "User-Agent":
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
   "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
-  Accept: "application/json, text/plain, */*",
+  "Accept-Encoding": "gzip, deflate, br",
   "Sec-CH-UA": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
   "Sec-CH-UA-Mobile": "?0",
   "Sec-CH-UA-Platform": '"macOS"',
-  "Sec-Fetch-Dest": "empty",
-  "Sec-Fetch-Mode": "cors",
-  "Sec-Fetch-Site": "same-origin",
-  Referer: `${VINTED_BASE}/catalog`,
 };
 
-interface VintedItem {
-  id: string;
-  title: string;
-  price_eur: number;
-  url: string;
-  image_url: string | null;
-  brand: string;
-  size: string | null;
-  condition: string;
-}
-
-// Brand IDs known on Vinted (avoids a separate brand lookup API call)
+// Brand IDs on Vinted (fetched once via /api/v2/brands in production;
+// hardcoded here to avoid an extra round-trip)
 const BRAND_IDS: Record<string, number> = {
   prada: 3573,
   "miu miu": 4490,
@@ -53,100 +39,123 @@ const BRAND_IDS: Record<string, number> = {
   "comme des garcons": 15684,
 };
 
-async function bootstrapCookies(): Promise<string> {
-  const res = await fetch(`${VINTED_BASE}/catalog`, {
-    headers: {
-      ...DEFAULT_HEADERS,
-      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    },
-    cache: "no-store",
-  });
-  const setCookie = res.headers.get("set-cookie") || "";
-  // Extract relevant cookies
-  const cookies = setCookie
-    .split(/,(?=[^ ])/)
-    .map((c) => c.split(";")[0].trim())
-    .filter((c) => c.includes("="))
-    .join("; ");
-  return cookies;
+/** Extract all Set-Cookie values from a response (Node.js 18+ supports getSetCookie). */
+function extractCookies(headers: Headers): string {
+  // Node 18.14+ exposes getSetCookie() returning string[]
+  const raw = (headers as unknown as { getSetCookie?: () => string[] }).getSetCookie?.() ?? [];
+  if (raw.length > 0) {
+    return raw.map((c) => c.split(";")[0].trim()).join("; ");
+  }
+  // Fallback: single set-cookie header (may be truncated)
+  return (headers.get("set-cookie") || "").split(",").map((c) => c.split(";")[0].trim()).join("; ");
 }
 
-function parseItems(data: Record<string, unknown>): VintedItem[] {
-  const items = (data.items as Record<string, unknown>[]) || [];
-  return items.map((item) => {
+interface VintedItem {
+  id: string;
+  title: string;
+  price_eur: number;
+  url: string;
+  image_url: string | null;
+  brand: string;
+  size: string | null;
+  condition: string;
+}
+
+function parseItems(items: unknown[]): VintedItem[] {
+  return items.map((raw) => {
+    const item = raw as Record<string, unknown>;
     const priceData = (item.price as Record<string, unknown>) || {};
-    const photo = (item.photo as Record<string, unknown>) || {};
     const photos = (item.photos as Record<string, unknown>[]) || [];
-    const firstPhoto = photos[0] || photo;
+    const photo = (item.photo as Record<string, unknown>) || {};
+    const firstPhoto = photos[0] ?? photo;
     const imageUrl =
-      (firstPhoto.url as string) ||
-      (firstPhoto.full_size_url as string) ||
-      (photo.url as string) ||
+      (firstPhoto.url as string | undefined) ??
+      (firstPhoto.full_size_url as string | undefined) ??
       null;
 
     return {
       id: String(item.id),
-      title: (item.title as string) || "",
-      price_eur: parseFloat(String(priceData.amount || 0)),
-      url: (item.url as string) || `${VINTED_BASE}/items/${item.id}`,
+      title: String(item.title ?? ""),
+      price_eur: parseFloat(String(priceData.amount ?? 0)),
+      url: String(item.url ?? `${VINTED_BASE}/items/${item.id}`),
       image_url: imageUrl,
-      brand: (item.brand_title as string) || "",
-      size: (item.size_title as string) || null,
-      condition: (item.status as string) || "good",
+      brand: String(item.brand_title ?? ""),
+      size: (item.size_title as string | null) ?? null,
+      condition: String(item.status ?? "good"),
     };
   });
 }
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const brand = searchParams.get("brand") || "";
-  const limit = Math.min(parseInt(searchParams.get("limit") || "10"), 20);
-  const minPrice = searchParams.get("min_price") || "100";
-
-  const brandKey = brand.toLowerCase();
-  const brandId = BRAND_IDS[brandKey];
+  const brand = searchParams.get("brand") ?? "";
+  const limit = Math.min(parseInt(searchParams.get("limit") ?? "10"), 20);
+  const minPrice = searchParams.get("min_price") ?? "100";
 
   try {
-    // Bootstrap session to get cookies
-    const cookies = await bootstrapCookies();
+    // 1. Bootstrap — visit catalog to receive session cookies (including access_token_web)
+    const bootstrapRes = await fetch(`${VINTED_BASE}/catalog`, {
+      headers: {
+        ...BROWSER_HEADERS,
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+      },
+      cache: "no-store",
+      redirect: "follow",
+    });
 
-    if (!cookies) {
-      return Response.json({ items: [], error: "Could not obtain Vinted session" }, { status: 502 });
+    const cookieHeader = extractCookies(bootstrapRes.headers);
+    if (!cookieHeader) {
+      return Response.json({ items: [], error: "No cookies from Vinted bootstrap" }, { status: 502 });
     }
 
+    // 2. Build catalog API query
+    const brandKey = brand.toLowerCase();
+    const brandId = BRAND_IDS[brandKey];
     const params = new URLSearchParams({
       per_page: String(limit),
       page: "1",
       order: "newest_first",
       price_from: minPrice,
     });
-
     if (brandId) {
       params.set("brand_ids[]", String(brandId));
     } else if (brand) {
       params.set("search_text", brand);
     }
 
-    const apiUrl = `${VINTED_BASE}/api/v2/catalog/items?${params}`;
-    const res = await fetch(apiUrl, {
+    // 3. Fetch catalog items using the session cookies
+    const apiRes = await fetch(`${VINTED_BASE}/api/v2/catalog/items?${params}`, {
       headers: {
-        ...DEFAULT_HEADERS,
-        Cookie: cookies,
+        ...BROWSER_HEADERS,
+        Accept: "application/json, text/plain, */*",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin",
+        Referer: `${VINTED_BASE}/catalog`,
+        Cookie: cookieHeader,
       },
       cache: "no-store",
     });
 
-    if (!res.ok) {
+    if (!apiRes.ok) {
+      const body = await apiRes.text().catch(() => "");
       return Response.json(
-        { items: [], error: `Vinted API returned ${res.status}` },
-        { status: res.status === 403 ? 503 : res.status }
+        { items: [], error: `Vinted API ${apiRes.status}`, detail: body.slice(0, 200) },
+        { status: apiRes.status === 403 ? 503 : apiRes.status }
       );
     }
 
-    const data = (await res.json()) as Record<string, unknown>;
-    const items = parseItems(data);
+    const data = (await apiRes.json()) as Record<string, unknown>;
+    const rawItems = (data.items as unknown[]) ?? [];
+    const items = parseItems(rawItems);
 
-    return Response.json({ items, total: data.pagination ? (data.pagination as Record<string, unknown>).total_count : items.length });
+    return Response.json({
+      items,
+      total: (data.pagination as Record<string, unknown> | undefined)?.total_count ?? items.length,
+    });
   } catch (err) {
     return Response.json({ items: [], error: String(err) }, { status: 500 });
   }
