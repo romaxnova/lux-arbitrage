@@ -190,7 +190,12 @@ async def ingest_listings(db) -> dict:
 
     adapters = []
     if settings.vinted_enabled:
-        adapters.append(VintedAdapter())
+        if settings.vinted_proxy_url:
+            from app.scrapers.vinted_proxy import VintedProxyAdapter
+            adapters.append(VintedProxyAdapter())
+            logger.info("Using Vinted proxy adapter via %s", settings.vinted_proxy_url)
+        else:
+            adapters.append(VintedAdapter())
     if settings.oskelly_enabled:
         adapters.append(OskellyAdapter())
 

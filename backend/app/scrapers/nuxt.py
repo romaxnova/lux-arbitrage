@@ -42,6 +42,14 @@ def _resolve_category(payload: list[Any], category_ref: Any) -> tuple[str, str |
     return map_oskelly_category(name), name
 
 
+def _upgrade_image_url(url: str) -> str:
+    """Oskelly CDN stores thumbnails as 'tiny-UUID' and full images as 'item-UUID'.
+    Replace the tiny prefix so the card shows a usable full-size photo."""
+    if "/tiny-" in url:
+        return url.replace("/tiny-", "/item-")
+    return url
+
+
 def _resolve_images(payload: list[Any], images_ref: Any) -> list[str]:
     images = resolve_ref(payload, images_ref)
     if isinstance(images, int):
@@ -55,15 +63,14 @@ def _resolve_images(payload: list[Any], images_ref: Any) -> list[str]:
             for key in ("path", "url", "imageUrl", "src"):
                 val = resolve_ref(payload, img.get(key))
                 if isinstance(val, str) and val.startswith("http"):
-                    urls.append(val)
+                    urls.append(_upgrade_image_url(val))
                     break
             else:
-                # nested path object
                 path = resolve_ref(payload, img.get("path"))
                 if isinstance(path, str) and path.startswith("http"):
-                    urls.append(path)
+                    urls.append(_upgrade_image_url(path))
         elif isinstance(img, str) and img.startswith("http"):
-            urls.append(img)
+            urls.append(_upgrade_image_url(img))
     return urls
 
 

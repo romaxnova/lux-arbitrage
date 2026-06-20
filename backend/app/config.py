@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     scraper_listings_per_query: int = 20
     scraper_stale_hours: int = 72
 
+    # Vercel proxy URL — when set, the backend fetches Vinted data via the
+    # Next.js /api/vinted route running in a European edge region (fra1),
+    # bypassing Vinted's US IP block on Render.
+    vinted_proxy_url: str = ""
+
     vinted_domain: str = "fr"
     vinted_per_page: int = 48
     vinted_max_pages: int = 2

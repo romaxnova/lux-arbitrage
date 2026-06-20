@@ -358,11 +358,64 @@ async def _seed_fallback(db, brands: dict, marketplaces: dict) -> tuple[int, int
     return vinted_created, oskelly_created
 
 
+async def _seed_real_vinted(db, brands: dict, marketplaces: dict) -> int:
+    """Scrape real Vinted listings via the Vercel proxy and store them."""
+    from app.config import get_settings
+    from app.scrapers.vinted_proxy import VintedProxyAdapter
+
+    settings = get_settings()
+    if not settings.vinted_proxy_url:
+        return 0
+
+    vinted_mp = marketplaces["vinted"]
+    adapter = VintedProxyAdapter()
+    created = 0
+
+    from app.core.constants import PRIORITY_BRANDS
+
+    for brand_name in PRIORITY_BRANDS:
+        brand_slug = slugify(brand_name)
+        brand = brands.get(brand_slug)
+        if not brand:
+            continue
+
+        try:
+            raw_listings = await adapter.fetch_listings(brand_name, "all", limit=10)
+        except Exception as exc:
+            logger.warning("Vinted proxy failed for %s: %s", brand_name, exc)
+            continue
+
+        for raw in raw_listings:
+            ext_id = f"vproxy_{raw.external_id}"
+            listing = await _upsert_demo_listing(
+                db,
+                mp=vinted_mp,
+                brand=brand,
+                ext_id=ext_id,
+                title=raw.title,
+                category=raw.category,
+                size_raw=raw.size_raw,
+                price_eur=raw.price,
+                currency="EUR",
+                listing_url=raw.listing_url,
+                image_urls=raw.image_urls,
+                description=raw.description or raw.title,
+            )
+            if listing:
+                created += 1
+
+    logger.info("Real Vinted via proxy: %s listings", created)
+    return created
+
+
 async def run_demo_seed(db) -> dict:
     """Populate DB with demo listings, run matching and scoring. Idempotent."""
     await currency_service.refresh_rates()
     marketplaces = await ensure_marketplaces(db)
     brands = await ensure_brands(db)
+
+    # Try real Vinted data via Vercel proxy first
+    vinted_proxy_count = await _seed_real_vinted(db, brands, marketplaces)
 
     # Try live Oskelly scrape first
     logger.info("Demo seed: scraping Oskelly for high-value listings...")
@@ -380,6 +433,7 @@ async def run_demo_seed(db) -> dict:
     scoring = await run_scoring(db)
 
     return {
+        "vinted_real_via_proxy": vinted_proxy_count,
         "oskelly_real_listings": o1,
         "vinted_virtual_listings": v1,
         "fallback_pairs": o2,
