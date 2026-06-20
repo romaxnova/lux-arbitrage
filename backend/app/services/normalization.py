@@ -103,6 +103,188 @@ def extract_item_type(title: str) -> tuple[str, str]:
     return "accessories", ""
 
 
+# English/European keyword fragments -> (category, canonical item type).
+# Mirrors RUSSIAN_TO_ITEM_TYPE so Vinted (EN/FR/IT/DE/NL) titles resolve to the
+# same canonical item-type vocabulary as Oskelly. Most-specific first.
+ENGLISH_TO_ITEM_TYPE: list[tuple[str, str, str]] = [
+    # shoes
+    ("sneaker", "shoes", "sneakers"), ("trainer", "shoes", "sneakers"),
+    ("basket", "shoes", "sneakers"), ("runner", "shoes", "sneakers"),
+    ("ankle boot", "shoes", "boots"), ("boot", "shoes", "boots"),
+    ("stiefel", "shoes", "boots"), ("bottine", "shoes", "boots"),
+    ("loafer", "shoes", "loafers"), ("mocassin", "shoes", "loafers"),
+    ("mocassino", "shoes", "loafers"),
+    ("ballet", "shoes", "ballet flats"), ("ballerina", "shoes", "ballet flats"),
+    ("ballerine", "shoes", "ballet flats"),
+    ("espadrille", "shoes", "espadrilles"),
+    ("mule", "shoes", "mules"), ("sabot", "shoes", "mules"),
+    ("sandal", "shoes", "sandals"), ("sandale", "shoes", "sandals"),
+    ("heel", "shoes", "heels"), ("pump", "shoes", "heels"),
+    ("talon", "shoes", "heels"), ("escarpin", "shoes", "heels"),
+    ("slingback", "shoes", "heels"), ("derby", "shoes", "loafers"),
+    ("slip-on", "shoes", "sneakers"), ("slipon", "shoes", "sneakers"),
+    ("flat", "shoes", "ballet flats"),
+    ("chaussure", "shoes", "shoes"), ("scarpa", "shoes", "shoes"),
+    ("schuh", "shoes", "shoes"), ("tabi", "shoes", "boots"),
+    # bags
+    ("tote", "bags", "tote bag"), ("shopper", "bags", "tote bag"),
+    ("backpack", "bags", "backpack"), ("rucksack", "bags", "backpack"),
+    ("sac a dos", "bags", "backpack"), ("sac à dos", "bags", "backpack"),
+    ("belt bag", "bags", "belt bag"), ("bum bag", "bags", "belt bag"),
+    ("clutch", "bags", "clutch"), ("pochette", "bags", "clutch"),
+    ("pouch", "bags", "clutch"),
+    ("wallet", "bags", "wallet"), ("portefeuille", "bags", "wallet"),
+    ("porte-monnaie", "bags", "wallet"), ("portafoglio", "bags", "wallet"),
+    ("briefcase", "bags", "briefcase"),
+    ("crossbody", "bags", "bag"), ("shoulder bag", "bags", "bag"),
+    ("hobo", "bags", "bag"), ("bag", "bags", "bag"), ("sac", "bags", "bag"),
+    ("borsa", "bags", "bag"), ("tasche", "bags", "bag"),
+    # outerwear
+    ("down jacket", "outerwear", "down jacket"), ("puffer", "outerwear", "down jacket"),
+    ("doudoune", "outerwear", "down jacket"),
+    ("bomber", "outerwear", "bomber jacket"), ("anorak", "outerwear", "anorak"),
+    ("parka", "outerwear", "anorak"),
+    ("raincoat", "outerwear", "raincoat"), ("trench", "outerwear", "raincoat"),
+    ("coat", "outerwear", "coat"), ("manteau", "outerwear", "coat"),
+    ("cappotto", "outerwear", "coat"), ("mantel", "outerwear", "coat"),
+    ("jacket", "outerwear", "jacket"), ("veste", "outerwear", "jacket"),
+    ("blouson", "outerwear", "jacket"), ("giacca", "outerwear", "jacket"),
+    ("jacke", "outerwear", "jacket"), ("vest", "outerwear", "vest"),
+    ("gilet", "outerwear", "vest"),
+    # denim / trousers
+    ("jean", "denim", "jeans"), ("denim", "denim", "jeans"),
+    ("trouser", "denim", "trousers"), ("pantalon", "denim", "trousers"),
+    ("short", "denim", "shorts"),
+    # knitwear / tops
+    ("cardigan", "knitwear", "cardigan"),
+    ("pullover", "knitwear", "pullover"), ("pull", "knitwear", "pullover"),
+    ("sweater", "knitwear", "sweater"), ("jumper", "knitwear", "sweater"),
+    ("maglione", "knitwear", "sweater"),
+    ("hoodie", "knitwear", "hoodie"), ("sweat", "knitwear", "sweatshirt"),
+    ("polo", "knitwear", "polo shirt"),
+    ("long sleeve", "knitwear", "long sleeve"), ("longsleeve", "knitwear", "long sleeve"),
+    ("t-shirt", "knitwear", "t-shirt"), ("tee", "knitwear", "t-shirt"),
+    ("tshirt", "knitwear", "t-shirt"), ("t shirt", "knitwear", "t-shirt"),
+    ("shirt", "knitwear", "shirt"), ("chemise", "knitwear", "shirt"),
+    ("blouse", "knitwear", "blouse"), ("top", "knitwear", "top"),
+    ("dress", "knitwear", "dress"), ("robe", "knitwear", "dress"),
+    ("skirt", "knitwear", "skirt"), ("jupe", "knitwear", "skirt"),
+    ("gonna", "knitwear", "skirt"),
+    # jewelry
+    ("necklace", "jewelry", "necklace"), ("collier", "jewelry", "necklace"),
+    ("earring", "jewelry", "earrings"), ("pendant", "jewelry", "pendant"),
+    ("bracelet", "jewelry", "bracelet"), ("ring", "jewelry", "ring"),
+    ("bague", "jewelry", "ring"), ("chain", "jewelry", "chain"),
+    # eyewear
+    ("sunglass", "eyewear", "sunglasses"), ("lunette", "eyewear", "sunglasses"),
+    ("glasses", "eyewear", "sunglasses"), ("occhiali", "eyewear", "sunglasses"),
+]
+
+
+def detect_item_type(text: str) -> str | None:
+    """Resolve a canonical English item-type from any-language listing text.
+
+    Tries Russian fragments first (Oskelly), then English/European fragments
+    (Vinted). Returns the canonical item-type phrase (e.g. "tote bag",
+    "sneakers", "dress") or None when nothing recognisable is present.
+    """
+    if not text:
+        return None
+    lower = text.lower()
+    for fragment, _cat, item_type in RUSSIAN_TO_ITEM_TYPE:
+        if fragment in lower:
+            return item_type
+    for fragment, _cat, item_type in ENGLISH_TO_ITEM_TYPE:
+        if fragment in lower:
+            return item_type
+    return None
+
+
+# Canonical item-type -> coarse "bucket". Two listings in the same category but
+# different buckets are almost certainly different products (a dress is not a
+# t-shirt; a sneaker is not a boot). Synonyms collapse into one bucket so a
+# generic "bag" still matches a "tote bag".
+ITEM_TYPE_BUCKETS: dict[str, str] = {
+    # shoes
+    "sneakers": "sneakers", "boots": "boots", "heels": "heels",
+    "loafers": "flats", "ballet flats": "flats", "mules": "flats",
+    "sandals": "sandals", "espadrilles": "sandals", "shoes": "",  # generic: no gate
+    # bags  (specific models are gated separately by model name)
+    "bag": "bag", "tote bag": "bag", "belt bag": "bag", "briefcase": "bag",
+    "backpack": "backpack", "clutch": "clutch", "wallet": "wallet",
+    # outerwear
+    "coat": "coat", "raincoat": "coat", "jacket": "jacket",
+    "bomber jacket": "jacket", "down jacket": "jacket", "anorak": "jacket",
+    "vest": "vest",
+    # knitwear / tops
+    "t-shirt": "top", "polo shirt": "top", "top": "top",
+    "long sleeve": "top", "blouse": "top", "shirt": "shirt",
+    "sweater": "knit", "pullover": "knit", "cardigan": "knit",
+    "hoodie": "sweat", "sweatshirt": "sweat",
+    "dress": "dress", "skirt": "skirt",
+    # denim
+    "jeans": "jeans", "trousers": "trousers", "shorts": "shorts",
+    # jewelry
+    "necklace": "necklace", "earrings": "earrings", "pendant": "necklace",
+    "bracelet": "bracelet", "ring": "ring", "chain": "necklace",
+    # eyewear
+    "sunglasses": "sunglasses",
+}
+
+
+def item_types_conflict(type_a: str | None, type_b: str | None) -> bool:
+    """True when both item-types are known and fall in different hard buckets.
+
+    Generic types (empty bucket, e.g. plain "shoes"/"bag") never conflict.
+    """
+    if not type_a or not type_b:
+        return False
+    bucket_a = ITEM_TYPE_BUCKETS.get(type_a.lower())
+    bucket_b = ITEM_TYPE_BUCKETS.get(type_b.lower())
+    if not bucket_a or not bucket_b:
+        return False
+    return bucket_a != bucket_b
+
+
+def resolve_semantics(
+    brand: str,
+    category: str,
+    subcategory: str | None,
+    title: str | None,
+    description: str | None = None,
+) -> tuple[str | None, str | None]:
+    """Resolve (canonical_model, item_type) for a listing from stored fields.
+
+    Language-independent: works on Russian (Oskelly) and EN/FR/IT/DE/NL
+    (Vinted) text alike.
+
+    1. Try the curated BRAND_MODELS registry over title + description +
+       subcategory. A hit yields the canonical model name and its item type.
+    2. Otherwise fall back to keyword-based item-type detection (model unknown).
+    """
+    from app.core.models_guide import find_model
+
+    text = " ".join(p for p in (title, description, subcategory) if p)
+    entry = find_model(brand, text)
+    if entry:
+        return entry["canonical"], entry.get("subcategory")
+
+    item_type = detect_item_type(text)
+    return None, item_type
+
+
+def model_match_score(model_a: str | None, model_b: str | None) -> float | None:
+    """Cross-language model agreement.
+
+    100 when both sides resolve to the same canonical model, 0 when they resolve
+    to different models, None when at least one side has no recognised model
+    (signal unavailable — weight is redistributed by the caller).
+    """
+    if not model_a or not model_b:
+        return None
+    return 100.0 if model_a.strip().lower() == model_b.strip().lower() else 0.0
+
+
 def slugify(text: str) -> str:
     text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
     text = re.sub(r"[^\w\s-]", "", text.lower())

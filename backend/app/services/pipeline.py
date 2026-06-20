@@ -16,7 +16,15 @@ from app.scrapers.oskelly import OskellyAdapter
 from app.scrapers.vinted import VintedAdapter
 from app.services.currency import currency_service
 from app.services.matching import compute_match_confidence, passes_arbitrage_direction
-from app.services.normalization import clean_title, normalize_brand, normalize_condition, normalize_size, slugify
+from app.services.normalization import (
+    clean_title,
+    item_types_conflict,
+    normalize_brand,
+    normalize_condition,
+    normalize_size,
+    resolve_semantics,
+    slugify,
+)
 from app.services.scoring import compute_opportunity
 from app.services.search import listing_document, opportunity_document, sync_listings, sync_opportunities
 
@@ -254,8 +262,23 @@ async def run_matching(db) -> int:
     vinted_listings = list(vinted_result.scalars().all())
     oskelly_listings = list(oskelly_result.scalars().all())
 
+    # Resolve (canonical_model, item_type) once per listing. This is the
+    # language-independent backbone of matching: a confirmed model on both sides
+    # pins down the exact product, and item types stop a dress matching a
+    # t-shirt or a sneaker matching a boot.
+    semantics: dict = {}
+    for listing in vinted_listings + oskelly_listings:
+        semantics[listing.id] = resolve_semantics(
+            brand=listing.brand.canonical_name,
+            category=listing.category,
+            subcategory=listing.subcategory,
+            title=listing.title or listing.normalized_title,
+            description=listing.description,
+        )
+
     created = 0
     for source in vinted_listings:
+        source_model, source_type = semantics[source.id]
         best_target = None
         best_scores = None
         best_confidence = Decimal("0")
@@ -265,12 +288,18 @@ async def run_matching(db) -> int:
                 continue
             if source.category != target.category:
                 continue
-            # Subcategory = canonical model name (e.g. "Jodie Bag", "Triple S").
-            # If both sides have a subcategory it MUST be the same model.
-            # This is the primary guard against apples-vs-oranges matches.
-            if source.subcategory and target.subcategory:
-                if source.subcategory.lower() != target.subcategory.lower():
-                    continue
+
+            target_model, target_type = semantics[target.id]
+            # Model gate: if both sides resolve to a known canonical model they
+            # MUST be the same one. Different models of the same brand+category
+            # are different products (Jodie vs Cassette, Triple S vs Speed).
+            if source_model and target_model and source_model.lower() != target_model.lower():
+                continue
+            # Item-type gate: within the same category, hard-incompatible types
+            # never match (dress vs t-shirt, sneakers vs boots).
+            if item_types_conflict(source_type, target_type):
+                continue
+
             if not passes_arbitrage_direction(source.price_eur, target.price_eur):
                 continue
 
@@ -281,12 +310,14 @@ async def run_matching(db) -> int:
                 title_a=source.normalized_title,
                 title_b=target.normalized_title,
                 category_a=source.category,
-                subcategory_a=source.subcategory,
+                subcategory_a=source_type,
                 category_b=target.category,
-                subcategory_b=target.subcategory,
+                subcategory_b=target_type,
                 size_a=source.size_normalized,
                 size_b=target.size_normalized,
                 has_images=bool(source.image_urls and target.image_urls),
+                model_a=source_model,
+                model_b=target_model,
             )
             if scores["match_confidence"] > best_confidence:
                 best_confidence = scores["match_confidence"]

@@ -77,10 +77,16 @@ SCORING_WEIGHTS = {
     "risk": 0.15,
 }
 
+# Weights for the multi-signal match confidence. The model signal is the
+# strongest anchor because a confirmed canonical model (e.g. "Jodie Bag",
+# "Triple S") is language-independent and pins down the exact product.
+# Signals that are unavailable for a given pair (no recognised model, no images)
+# are dropped and their weight is redistributed across the remaining signals.
 MATCH_WEIGHTS = {
-    "brand": 0.25,
-    "title": 0.25,
-    "image": 0.20,
-    "category": 0.15,
-    "size": 0.15,
+    "brand": 0.18,
+    "model": 0.30,
+    "title": 0.22,
+    "image": 0.12,
+    "category": 0.10,
+    "size": 0.08,
 }

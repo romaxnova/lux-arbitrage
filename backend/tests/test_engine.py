@@ -3,7 +3,15 @@
 from decimal import Decimal
 
 from app.services.matching import compute_match_confidence, passes_arbitrage_direction
-from app.services.normalization import normalize_brand, normalize_size, clean_title
+from app.services.normalization import (
+    clean_title,
+    detect_item_type,
+    item_types_conflict,
+    model_match_score,
+    normalize_brand,
+    normalize_size,
+    resolve_semantics,
+)
 from app.services.scoring import compute_roi_score, compute_price_gap_score
 
 
@@ -46,10 +54,74 @@ def test_size_normalization():
     assert size == "38"
 
 
+def test_detect_item_type_cross_language():
+    # English (Vinted) and Russian (Oskelly) resolve to the same vocabulary
+    assert detect_item_type("Bottega Veneta Jodie hobo bag") == "bag"
+    assert detect_item_type("Сумка тоут Bottega Veneta") == "tote bag"
+    assert detect_item_type("Maison Margiela Tabi ankle boots") == "boots"
+    assert detect_item_type("Платье Miu Miu шёлк") == "dress"
+    assert detect_item_type("nothing recognisable here") is None
+
+
+def test_item_type_conflict():
+    assert item_types_conflict("dress", "t-shirt")        # different knit buckets
+    assert item_types_conflict("sneakers", "boots")       # different shoe buckets
+    assert not item_types_conflict("bag", "tote bag")     # same bag bucket
+    assert not item_types_conflict("sneakers", None)      # one side unknown
+    assert not item_types_conflict("shoes", "boots")      # generic type: no gate
+
+
+def test_model_match_score():
+    assert model_match_score("Jodie Bag", "Jodie Bag") == 100.0
+    assert model_match_score("Jodie Bag", "Cassette Bag") == 0.0
+    assert model_match_score("Jodie Bag", None) is None
+    assert model_match_score(None, None) is None
+
+
+def test_resolve_semantics_registry():
+    # Oskelly Russian title with a registry model
+    model, item_type = resolve_semantics(
+        brand="Balenciaga", category="shoes", subcategory="Кроссовки",
+        title="Balenciaga Triple S", description="кроссовки",
+    )
+    assert model == "Triple S"
+    assert item_type == "sneakers"
+    # Vinted free text resolves the same model
+    model_v, _ = resolve_semantics(
+        brand="Balenciaga", category="shoes", subcategory=None,
+        title="Balenciaga Triple S sneakers grey", description="",
+    )
+    assert model_v == "Triple S"
+
+
+def test_match_confidence_model_boost():
+    """A confirmed model on both sides scores higher than fuzzy title alone."""
+    with_model = compute_match_confidence(
+        brand_a="Bottega Veneta", brand_b="Bottega Veneta", aliases_a=["BV"],
+        title_a="jodie hobo", title_b="jodie",
+        category_a="bags", subcategory_a="bag", category_b="bags", subcategory_b="bag",
+        size_a=None, size_b=None, has_images=True,
+        model_a="Jodie Bag", model_b="Jodie Bag",
+    )
+    without_model = compute_match_confidence(
+        brand_a="Bottega Veneta", brand_b="Bottega Veneta", aliases_a=["BV"],
+        title_a="jodie hobo", title_b="jodie",
+        category_a="bags", subcategory_a="bag", category_b="bags", subcategory_b="bag",
+        size_a=None, size_b=None, has_images=True,
+    )
+    assert float(with_model["match_confidence"]) > float(without_model["match_confidence"])
+    assert float(with_model["match_confidence"]) >= 72
+
+
 if __name__ == "__main__":
     test_brand_normalization()
     test_match_confidence_high()
     test_arbitrage_direction()
     test_roi_score()
     test_size_normalization()
+    test_detect_item_type_cross_language()
+    test_item_type_conflict()
+    test_model_match_score()
+    test_resolve_semantics_registry()
+    test_match_confidence_model_boost()
     print("All tests passed")
