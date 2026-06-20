@@ -237,6 +237,71 @@ async def get_opportunity(opportunity_id: UUID, db: Annotated[AsyncSession, Depe
     )
 
 
+@router.post("/opportunities/{opportunity_id}/post-to-oskelly")
+async def post_to_oskelly(
+    opportunity_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    publish: bool = False,
+):
+    """Generate an adapted Russian Oskelly listing for an opportunity.
+
+    The item we'd buy on Vinted is re-listed for sale on Oskelly. We build an
+    original Russian title + description (never a copy of the source text) and,
+    when ?publish=true AND posting is enabled, hand it to the Oskelly publisher.
+    Otherwise we return the preview so the operator can review before posting.
+    """
+    from app.services.normalization import resolve_semantics
+    from app.services.oskelly_publisher import OskellyPublisher, build_russian_listing, listing_to_dict
+
+    result = await db.execute(
+        select(Opportunity)
+        .where(Opportunity.id == opportunity_id)
+        .options(
+            selectinload(Opportunity.purchase_listing).selectinload(Listing.brand),
+            selectinload(Opportunity.sale_listing).selectinload(Listing.brand),
+        )
+    )
+    opp = result.scalar_one_or_none()
+    if not opp:
+        raise HTTPException(status_code=404, detail="Opportunity not found")
+
+    source = opp.purchase_listing      # the item we buy (Vinted) and re-sell
+    comp = opp.sale_listing            # the Oskelly comparable that sets price
+    brand_name = source.brand.canonical_name
+
+    model, item_type = resolve_semantics(
+        brand=brand_name,
+        category=source.category,
+        subcategory=source.subcategory,
+        title=source.title or source.normalized_title,
+        description=source.description,
+    )
+
+    listing = build_russian_listing(
+        brand=brand_name,
+        model=model,
+        item_type=item_type,
+        category=source.category,
+        condition=source.condition,
+        size=source.size_normalized or source.size_raw,
+        price_rub=float(comp.price_rub or 0),
+        images=(source.image_urls or comp.image_urls or []),
+    )
+
+    publisher = OskellyPublisher()
+    if publish:
+        publish_result = await publisher.publish(listing)
+    else:
+        publish_result = {
+            "status": "preview",
+            "message": "Предпросмотр карточки. Отправьте publish=true для публикации.",
+            "publish_enabled": publisher.enabled,
+            "credentials_configured": publisher.is_configured(),
+        }
+
+    return {"listing": listing_to_dict(listing), "result": publish_result}
+
+
 @router.get("/brands", response_model=list[BrandBrief])
 async def list_brands(db: Annotated[AsyncSession, Depends(get_db)]):
     result = await db.execute(select(Brand).order_by(Brand.canonical_name))

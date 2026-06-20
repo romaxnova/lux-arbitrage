@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { formatEur, formatPct, recColor, firstImage } from "@/lib/utils";
 import { ScoreBar } from "@/components/score-bar";
+import { PostToOskelly } from "@/components/post-to-oskelly";
 
 export const dynamic = "force-dynamic";
 
@@ -118,6 +119,9 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
           </div>
         </section>
       </div>
+
+      {/* Post-to-Oskelly: generate an adapted Russian listing for the sell side */}
+      <PostToOskelly opportunityId={opp.id} />
 
       {/* Oskelly listing detail */}
       <section className="card-glow rounded-xl p-6">

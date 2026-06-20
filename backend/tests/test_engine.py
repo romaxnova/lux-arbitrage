@@ -94,6 +94,37 @@ def test_resolve_semantics_registry():
     assert model_v == "Triple S"
 
 
+def test_build_russian_listing():
+    from app.services.oskelly_publisher import build_russian_listing
+
+    listing = build_russian_listing(
+        brand="Bottega Veneta", model="Jodie Bag", item_type="bag",
+        category="bags", condition="excellent", size=None, price_rub=185000,
+        images=["https://img/1.jpg"],
+    )
+    # Title is composed in Russian, keeps the Latin model, drops the generic tail
+    assert listing.title == "Сумка Bottega Veneta Jodie"
+    assert listing.price_rub == 185000
+    # Description is generated Russian copy — not a copy of any source text
+    assert "Состояние: Отличное состояние" in listing.description
+    assert "Bottega Veneta" in listing.description
+    assert "Подлинность" in listing.description
+    # Size line omitted when no size
+    assert "Размер" not in listing.description
+
+
+def test_build_russian_listing_with_size():
+    from app.services.oskelly_publisher import build_russian_listing
+
+    listing = build_russian_listing(
+        brand="Maison Margiela", model="Tabi Boots", item_type="boots",
+        category="shoes", condition="good", size="39", price_rub=72000,
+    )
+    assert listing.title == "Ботинки Maison Margiela Tabi"
+    assert "Размер: 39" in listing.description
+    assert listing.condition_ru == "Хорошее состояние"
+
+
 def test_match_confidence_model_boost():
     """A confirmed model on both sides scores higher than fuzzy title alone."""
     with_model = compute_match_confidence(

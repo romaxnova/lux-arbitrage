@@ -58,6 +58,13 @@ class Settings(BaseSettings):
     oskelly_max_pages: int = 2
     oskelly_min_price_rub: int = 5000
 
+    # Oskelly posting (sell side). Credentials are read from env / .env — never
+    # committed. Publishing stays in preview/dry-run mode until explicitly
+    # enabled, so the live account is never posted to by accident.
+    oskelly_login: str = ""
+    oskelly_password: str = ""
+    oskelly_publish_enabled: bool = False
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
