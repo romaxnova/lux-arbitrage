@@ -39,15 +39,22 @@ const BRAND_IDS: Record<string, number> = {
   "comme des garcons": 15684,
 };
 
-/** Extract all Set-Cookie values from a response (Node.js 18+ supports getSetCookie). */
+/** Extract all Set-Cookie values from a response and deduplicate by name.
+ *  Vinted sends access_token_web twice; keeping the last value is correct. */
 function extractCookies(headers: Headers): string {
-  // Node 18.14+ exposes getSetCookie() returning string[]
   const raw = (headers as unknown as { getSetCookie?: () => string[] }).getSetCookie?.() ?? [];
-  if (raw.length > 0) {
-    return raw.map((c) => c.split(";")[0].trim()).join("; ");
+  if (raw.length === 0) {
+    // Fallback for environments without getSetCookie
+    raw.push(...(headers.get("set-cookie") || "").split(/,(?=\s*\w+=)/));
   }
-  // Fallback: single set-cookie header (may be truncated)
-  return (headers.get("set-cookie") || "").split(",").map((c) => c.split(";")[0].trim()).join("; ");
+  // Deduplicate: last Set-Cookie wins for each name
+  const map = new Map<string, string>();
+  for (const cookie of raw) {
+    const nameVal = cookie.split(";")[0].trim();
+    const name = nameVal.split("=")[0].trim();
+    map.set(name, nameVal);
+  }
+  return [...map.values()].join("; ");
 }
 
 interface VintedItem {
