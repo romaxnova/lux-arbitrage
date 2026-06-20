@@ -1,0 +1,28 @@
+# Production overrides — no dev volume mounts, restart policies
+services:
+  api:
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+    restart: unless-stopped
+    volumes: []
+
+  worker:
+    restart: unless-stopped
+    volumes: []
+
+  beat:
+    restart: unless-stopped
+    volumes: []
+
+  frontend:
+    command: sh -c "npm run build && npm run start"
+    restart: unless-stopped
+    volumes: []
+
+  postgres:
+    restart: unless-stopped
+
+  redis:
+    restart: unless-stopped
+
+  meilisearch:
+    restart: unless-stopped
