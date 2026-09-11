@@ -30,7 +30,7 @@ from app.database import AsyncSessionLocal, init_db
 from app.models import Listing, Marketplace, PriceHistory
 from app.scrapers.oskelly import OskellyAdapter
 from app.services.currency import currency_service
-from app.services.normalization import clean_title, normalize_size, slugify
+from app.services.normalization import clean_title, detect_item_type, item_types_conflict, normalize_size, slugify
 from app.services.pipeline import ensure_brands, ensure_marketplaces, run_matching, run_scoring
 
 logger = logging.getLogger(__name__)
@@ -107,9 +107,11 @@ def _validate_vinted_listing(item: dict, model_entry: dict) -> bool:
     # Must match at least one alias from the model
     if any(alias in text for alias in model_entry["aliases"]):
         return True
-    # Accept if item brand is correct and search_en keywords appear in title
+    # Accept only when ALL search_en keywords appear in the listing text; requiring
+    # just one word out of two let junk titles ("!! Read description !!") slip through
+    # when they happened to contain a single generic word from the search phrase.
     search_words = model_entry["search_en"].lower().split()
-    if sum(1 for w in search_words if w in text) >= max(1, len(search_words) - 1):
+    if search_words and all(w in text for w in search_words):
         return True
     return False
 
@@ -169,6 +171,19 @@ async def run_demo_seed(db) -> dict:
 
             if not model_entry:
                 logger.debug("No model found for '%s' — skipping", raw.title)
+                continue
+
+            # Cross-check: if the independently-detected item type conflicts with the
+            # model's expected subcategory the alias hit is a false positive (e.g. a
+            # jacket text matching a backpack model via a shared material alias).
+            full_text_check = (raw.title or "") + " " + (raw.description or "")
+            detected_type = detect_item_type(full_text_check)
+            if item_types_conflict(detected_type, model_entry.get("subcategory")):
+                logger.debug(
+                    "Item type '%s' conflicts with model '%s' (%s) — skipping '%s'",
+                    detected_type, model_entry["canonical"],
+                    model_entry.get("subcategory"), raw.title,
+                )
                 continue
 
             if raw.currency == "RUB":
