@@ -144,6 +144,40 @@ def test_match_confidence_model_boost():
     assert float(with_model["match_confidence"]) >= 72
 
 
+def test_sandal_not_matched_as_handbag():
+    """'cassandra' alias must not pull a sandal listing into the Cassandra Bag model.
+
+    Root cause before fix: find_model() used first-entry-wins, so the short
+    generic alias "cassandra" (on Cassandra Bag) always beat the more specific
+    "cassandra heel" (on Cassandra Pumps); and even after the longest-alias fix,
+    a listing containing "sandal" has a detected item type ("sandals") that
+    conflicts with "bag" subcategory — so the cross-check must reject the match.
+    """
+    model, item_type = resolve_semantics(
+        brand="Saint Laurent", category="shoes", subcategory=None,
+        title="Saint Laurent Cassandra sandal noir",
+        description="sandal",
+    )
+    assert model != "Cassandra Bag", "sandal listing must not be misidentified as Cassandra Bag"
+    assert item_type == "sandals"
+
+
+def test_renylon_jacket_not_matched_as_backpack():
+    """'re-nylon' material alias must not pull a jacket listing into Re-Nylon Backpack.
+
+    Root cause before fix: "re-nylon" appears in both the jacket title AND the
+    backpack aliases list; the cross-check must reject when detect_item_type
+    returns "down jacket" and the model subcategory is "backpack".
+    """
+    model, item_type = resolve_semantics(
+        brand="Prada", category="outerwear", subcategory=None,
+        title="Prada Re-Nylon puffer jacket",
+        description="down jacket re-nylon",
+    )
+    assert model != "Re-Nylon Backpack", "jacket listing must not be misidentified as Re-Nylon Backpack"
+    assert item_type == "down jacket"
+
+
 if __name__ == "__main__":
     test_brand_normalization()
     test_match_confidence_high()
@@ -155,4 +189,6 @@ if __name__ == "__main__":
     test_model_match_score()
     test_resolve_semantics_registry()
     test_match_confidence_model_boost()
+    test_sandal_not_matched_as_handbag()
+    test_renylon_jacket_not_matched_as_backpack()
     print("All tests passed")

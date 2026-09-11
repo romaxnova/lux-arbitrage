@@ -267,7 +267,14 @@ def resolve_semantics(
     text = " ".join(p for p in (title, description, subcategory) if p)
     entry = find_model(brand, text)
     if entry:
-        return entry["canonical"], entry.get("subcategory")
+        # Cross-check: if the independently-detected item type conflicts with the
+        # model's expected subcategory the alias hit is a false positive (e.g. a
+        # shared material alias like "re-nylon" matching a jacket instead of the
+        # Re-Nylon Backpack, or the short "cassandra" matching a sandal listing
+        # instead of the Cassandra Bag).
+        detected = detect_item_type(text)
+        if not item_types_conflict(detected, entry.get("subcategory")):
+            return entry["canonical"], entry.get("subcategory")
 
     item_type = detect_item_type(text)
     return None, item_type
